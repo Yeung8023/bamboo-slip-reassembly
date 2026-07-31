@@ -20,18 +20,30 @@ def table_main(runs, out):
     d = pd.read_csv(runs)
     keep = ["top1", "mutual", "matching", "morph", "length", "full", "latent",
             "expert_top10", "expert_top50"]
+    # This table carries 45 rows and its own method column, so the long forms
+    # used in the figure legends are shortened here and the qualifiers moved
+    # into the caption. Otherwise the float runs past the text block.
     lbl = dict(style.METHOD_LABELS)
-    lbl.update({"expert_top10": "Expert review, top-10 (oracle)",
-                "expert_top50": "Expert review, top-50 (oracle)"})
+    lbl.update({"matching": "Bipartite matching",
+                "latent": "Latent-slip assembly (ours)",
+                "expert_top10": "Expert review, top-10",
+                "expert_top50": "Expert review, top-50"})
     mets = ["f1", "ari", "exact_slip", "cross_slip_rate"]
     g = d[d.method.isin(keep)].groupby(["state", "method"])[mets].agg(["mean", "std"])
 
-    lines = [r"\begin{table}[htbp]", r"\centering\small",
+    # 45 data rows over five preservation states. At \small the float overflows
+    # the text block by about 25 pt, so this one table is set a step smaller
+    # with slightly tighter rows.
+    lines = [r"\begin{table}[htbp]",
+             r"\centering\footnotesize\setlength{\tabcolsep}{3pt}"
+             r"\renewcommand{\arraystretch}{0.95}",
              r"\caption{\textbf{Reconstruction quality across the preservation "
              r"ladder.} Corpora of 1{,}151 fragments; mean over five seeds "
-             r"(standard deviation in parentheses). Cross-slip rate is the "
-             r"fraction of accepted joins that link fragments of two different "
-             r"slips.}", r"\label{tab:main}",
+             r"(standard deviation in parentheses). Bipartite matching is the "
+             r"model under the uniqueness constraint alone. Expert review is an "
+             r"oracle specialist working down a ranked list. Cross-slip rate is "
+             r"the fraction of accepted joins that link fragments of two "
+             r"different slips.}", r"\label{tab:main}",
              r"\begin{tabular}{llrrrr}", r"\toprule",
              r"State & Method & Join $F_1$ & Slip ARI & Exact slips & "
              r"Cross-slip \\", r"\midrule"]
@@ -133,11 +145,17 @@ def table_methods(out):
         ("Expert review (oracle)", "reference", "finds the partner if it is in top $k$",
          "upper bound on ranked-list workflows"),
     ]
+    # The last two columns hold sentences, so they are set as paragraph
+    # columns. With plain l columns the table runs well past the text block of
+    # a single column page.
     lines = [r"\begin{table}[htbp]", r"\centering\small",
              r"\caption{Compared methods. All optimisation based methods are "
              r"constraint subsets of the same model, solved by the same solver "
              r"on the same arc set.}", r"\label{tab:methods}",
-             r"\begin{tabular}{llll}", r"\toprule",
+             r"\begin{tabular}{@{}" + "".join(
+                 r">{\raggedright\arraybackslash}p{" + w + "}"
+                 for w in ("3.1cm", "2.2cm", "4.7cm", "4.3cm")) + r"@{}}",
+             r"\toprule",
              r"Method & Type & What it does & Why it is included \\", r"\midrule"]
     for r in rows:
         lines.append(" & ".join(r) + r" \\")
