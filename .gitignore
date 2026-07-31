@@ -1,0 +1,14 @@
+# Regenerated deterministically from seeds by `src/matcher.py pairs`, and far
+# over GitHub's file size limit.
+data/train_pairs.npz
+
+# Manuscript, submission package and internal working notes are not part of the
+# code and data release.
+paper/
+submission/
+figs_backup_jas/
+paper.txt
+HANDOFF.md
+
+__pycache__/
+*.pyc

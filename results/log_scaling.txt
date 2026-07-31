@@ -1,0 +1,17 @@
+[P4] theta(matching) = +4.6  (cal F1 0.479)
+[P4] theta(latent) = +1.7  (cal F1 0.754)
+[P4] calibration a=27.26 b=-10.41 (24s)
+  [P4] size 150 seed 0 (7s)
+  [P4] size 150 seed 1 (7s)
+  [P4] size 150 seed 2 (5s)
+  [P4] size 400 seed 0 (125s)
+  [P4] size 400 seed 1 (357s)
+  [P4] size 400 seed 2 (232s)
+  [P4] size 900 seed 0 (922s)
+  [P4] size 900 seed 1 (934s)
+  [P4] size 900 seed 2 (923s)
+  [P4] size 1800 seed 0 (929s)
+  [P4] size 1800 seed 1 (927s)
+  [P4] size 1800 seed 2 (928s)
+
+96 rows -> results/runs_scaling.csv
