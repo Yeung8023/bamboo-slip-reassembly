@@ -17,14 +17,30 @@ constraints a real corpus obeys:
   morphometry   slip width is constant along a slip
   notches       binding notches sit at the heights where cords actually ran
   hand          one slip is written by one scribe
-  stratigraphy  fragments from incompatible excavation units cannot conjoin
+  stratigraphy  fragments recovered far apart cannot conjoin
+  roll length   the slips of one manuscript share a standard length
 
-The first three are structural and are imposed exactly.  Morphometry and
-stratigraphy prune the arc set.  Hand attribution is noisy, so it enters as
-calibrated evidence in the objective rather than as a hard rule.  The notch
-constraint is the interesting one: it is *absolute* positional information that
-no pairwise scorer can use, because it only becomes a constraint once a
-fragment has been assigned a position within a slip.
+The first three are structural and are imposed exactly.  Morphometry prunes the
+arc set.  Hand attribution is noisy, so it enters as calibrated evidence in the
+objective rather than as a hard rule.  The notch constraint is the interesting
+one: it is *absolute* positional information that no pairwise scorer can use,
+because it only becomes a constraint once a fragment has been assigned a
+position within a slip.
+
+Excavation context is the one that had to be rethought.  Treated as a gate, as
+it was in the first version of this work, it is right only when the record is a
+clean partition of the corpus, and once fragments have dispersed it deletes
+true joins faster than it deletes impostors.  ``strat_mode="soft"`` replaces the
+gate with log-odds graded by how far apart the two recorded squares are, fitted
+on the calibration corpus by fit_context_lr(), and says nothing at all about a
+fragment recovered without a record.
+
+Two consequences of the model being separable are worth naming.  Every variable
+belongs to one fragment, so solve_decomposed() splits the corpus into connected
+components of the arc graph and returns the exact optimum rather than a bound.
+And because a manuscript was trimmed to one length, pooling the latent length
+over the fragments recorded in one excavation square collapses the band around
+each binding cord, which is what makes the notch constraint bind at all.
 """
 
 from __future__ import annotations
@@ -53,6 +69,36 @@ class AssemblyConfig:
     # each chain, instead of pairwise proxies for them.
     use_latent: bool = False
     width_meas_mm: float = 0.30  # tolerance between latent and observed width
+    # Excavation context.  "hard" is the published gate: two fragments may join
+    # only if their recorded units agree.  That is right when the record is a
+    # clean partition and wrong as soon as fragments disperse, because it then
+    # deletes true joins outright.  "soft" grades the evidence by how far apart
+    # the two squares are, cutting only beyond a radius and staying silent
+    # about fragments recovered without a context record.
+    strat_mode: str = "hard"       # "hard" | "soft"
+    strat_radius: int = 1          # squares; arcs beyond this are cut in soft mode
+    strat_lr: tuple = ()           # log-odds by block distance, from fit_context_lr
+    # Joint estimate of slip length across the slips of one roll.  A cord sits
+    # at a fraction of a length known only to within the range of the corpus,
+    # which is 47 mm wide, so the admissible band around each cord is several
+    # millimetres and the notch constraint almost never binds.  Slips of one
+    # roll were trimmed to one standard length, so pooling the latent length
+    # over a roll collapses that band.
+    use_roll_length: bool = False
+    roll_key: str = "unit"         # "unit" (what an excavation records) or
+                                   # "roll" (upper bound, if bundles were kept)
+    roll_len_tol_mm: float = 4.0
+    # An excavation square is not a manuscript.  A roll of 30 slips is wider
+    # than a 250 mm square, so a square routinely holds slips from two rolls,
+    # and forcing them all to one length is worse than not pooling at all.
+    # The square is therefore given a small number of latent lengths and each
+    # slip takes one of them, which is a mixture over the manuscripts a square
+    # can contain rather than an assumption that it contains one.
+    roll_len_classes: int = 1
+    # Notches on one fragment, read from its top downwards, must take cords in
+    # the same order.  Without this each notch is placed independently and two
+    # of them may claim the same cord.
+    notch_order: bool = False
     hand_accuracy: float = 0.80
     n_scribes: int = 6
     cord_fracs: tuple = (0.06, 0.5, 0.94)
@@ -112,6 +158,66 @@ def log_odds(S, cal):
     return a * S + b
 
 
+def _block_rc(meta):
+    """Row and column of the excavation square each fragment came from."""
+    rc = np.array([m.get("unit_rc", (m["unit"], 0)) for m in meta], np.int64)
+    return rc[:, 0], rc[:, 1]
+
+
+def block_distance(meta):
+    """Chebyshev distance in excavation squares between every pair of fragments.
+
+    Fragments recovered without a context record are marked -1, which every
+    caller reads as "this pair carries no contextual evidence" rather than as
+    "these fragments were found far apart".
+    """
+    r, c = _block_rc(meta)
+    known = r > -900
+    d = np.maximum(np.abs(r[:, None] - r[None, :]),
+                   np.abs(c[:, None] - c[None, :]))
+    d[~known, :] = -1
+    d[:, ~known] = -1
+    return d
+
+
+def fit_context_lr(meta, joins, radius=1, n_neg=200000, seed=0):
+    """Log-odds that two fragments belong to one slip, by excavation distance.
+
+    Fitted on a calibration corpus with known ground truth, in the same spirit
+    as the Platt scaling of the matcher scores: how informative the excavation
+    record is depends on how far fragments dispersed and how finely the site
+    was subdivided, and both vary between sites.  Estimating it from the corpus
+    itself means the constraint carries the strength the record actually has,
+    instead of a strength assumed by the modeller.
+
+    Returns log-odds for distances 0..radius.  Anything beyond the radius is
+    cut by the caller, and an unrecorded fragment gets no evidence either way.
+    """
+    rng = np.random.default_rng(seed)
+    d = block_distance(meta)
+    joins = np.asarray(joins).reshape(-1, 2)
+    if len(joins) == 0:
+        return tuple(0.0 for _ in range(radius + 1))
+    pos = d[joins[:, 0], joins[:, 1]]
+    n = len(meta)
+    ii, jj = rng.integers(0, n, n_neg), rng.integers(0, n, n_neg)
+    keep = ii != jj
+    neg = d[ii[keep], jj[keep]]
+
+    out = []
+    for k in range(radius + 1):
+        p = (np.sum(pos == k) + 1.0) / (np.sum(pos >= 0) + radius + 1.0)
+        q = (np.sum(neg == k) + 1.0) / (np.sum(neg >= 0) + radius + 1.0)
+        out.append(float(np.log(p / q)))
+    # Referenced to the same-square case, which contributes nothing.  Only the
+    # differences between distances are evidence; the part common to every arc
+    # is exactly a reparameterisation of the join-claiming threshold.  Leaving
+    # it in would put the graded variant on a different part of the threshold
+    # grid from the gated one and turn a comparison of models into a comparison
+    # of grids.
+    return tuple(float(x - out[0]) for x in out)
+
+
 # --------------------------------------------------------------------------
 # problem construction
 # --------------------------------------------------------------------------
@@ -135,8 +241,30 @@ def build_problem(meta, W, cfg: AssemblyConfig):
     if cfg.use_width:
         bad = np.abs(width[:, None] - width[None, :]) > cfg.width_tol_mm
         Wm[bad] = -np.inf
-    if cfg.use_strat:
-        Wm[unit[:, None] != unit[None, :]] = -np.inf
+    if cfg.use_strat and cfg.strat_mode == "soft":
+        # Graded contextual evidence.  Fragments recovered from squares further
+        # apart than the radius cannot have lain together and the arc is cut;
+        # within the radius the record shifts the odds rather than deciding
+        # them; a fragment recovered without a record is neither helped nor
+        # excluded, which is what makes an incomplete excavation log usable at
+        # all.
+        d = block_distance(meta)
+        lr = np.asarray(cfg.strat_lr if cfg.strat_lr else
+                        (0.0,) * (cfg.strat_radius + 1), np.float64)
+        ctx = np.zeros_like(Wm)
+        for k in range(min(len(lr), cfg.strat_radius + 1)):
+            ctx[d == k] = lr[k]
+        Wm = Wm + ctx
+        Wm[d > cfg.strat_radius] = -np.inf
+    elif cfg.use_strat:
+        # The gate excludes a join only when both fragments carry a record and
+        # the records differ.  A fragment recovered without one is excluded
+        # from nothing, which is the fairest reading of a gate: making it
+        # joinable only with other unrecorded fragments would be a weaker
+        # baseline than anyone would actually build.
+        known = unit >= 0
+        bad = (unit[:, None] != unit[None, :]) & known[:, None] & known[None, :]
+        Wm[bad] = -np.inf
     # a chain of two fragments must still fit inside one slip
     if cfg.use_length:
         Wm[height[:, None] + height[None, :] > cfg.max_slip_mm] = -np.inf
@@ -166,22 +294,36 @@ def build_problem(meta, W, cfg: AssemblyConfig):
             if np.isfinite(v) and v > 0:
                 arcs.append((i, int(j)))
                 wts.append(float(v))
+    roll = np.array([m.get("roll", -1) for m in meta], np.int64)
+    # The size of the scribe alphabet fixes the weight of the hand term, so it
+    # is measured once over the whole corpus.  Left to be inferred inside each
+    # sub-problem it would price the same evidence differently in different
+    # parts of the corpus, and the decomposition below would stop being exact.
+    k_hand = int(max(int(cfg.n_scribes), int(hand.max()) + 1 if n else 0))
     return dict(n=n, arcs=arcs, weights=np.array(wts), height=height,
-                width=width, hand=hand, unit=unit, meta=meta, cfg=cfg)
+                width=width, hand=hand, unit=unit, roll=roll, meta=meta,
+                cfg=cfg, k_hand=k_hand)
 
 
 # --------------------------------------------------------------------------
 # exact solver
 # --------------------------------------------------------------------------
 
-def solve_cpsat(prob, time_limit=None, workers=None, log=False, trace=False):
-    """Exact (or best-found) maximum-weight consistent path cover via CP-SAT."""
+def solve_cpsat(prob, time_limit=None, workers=None, log=False, trace=False,
+                constants=False):
+    """Exact (or best-found) maximum-weight consistent path cover via CP-SAT.
+
+    ``constants`` builds the model even when no candidate arc survives.  A
+    fragment that joins nothing still contributes to the objective, through the
+    hand term and through any notch it cannot place, and the decomposition
+    below needs those terms to add up to the objective of the whole corpus.
+    """
     from ortools.sat.python import cp_model
 
     cfg = prob["cfg"]
     n, arcs, wts = prob["n"], prob["arcs"], prob["weights"]
     height, meta = prob["height"], prob["meta"]
-    if not arcs:
+    if not arcs and not (constants and n):
         return dict(joins=[], objective=0.0, status="EMPTY")
 
     m = cp_model.CpModel()
@@ -230,6 +372,43 @@ def solve_cpsat(prob, time_limit=None, workers=None, log=False, trace=False):
             for i in range(n):
                 m.Add(pos[i] + int(round(height[i] * MM)) <= Lv[i])
 
+            if cfg.use_roll_length:
+                # One roll is one manuscript, and a manuscript was trimmed to a
+                # single standard length.  Estimating that length jointly over
+                # the slips of a roll, instead of allowing each chain the full
+                # 231-278 mm of the corpus, is what makes the binding notches
+                # bite: the admissible band around a cord shrinks from the
+                # spread of the corpus to the spread of one roll.  The grouping
+                # key is the excavation square, which is information a site
+                # already records; grouping by the true bundle is reported
+                # separately as the upper bound it is.
+                key = prob["roll"] if cfg.roll_key == "roll" else prob["unit"]
+                groups = {}
+                for i in range(n):
+                    g = int(key[i])
+                    if g >= 0:
+                        groups.setdefault(g, []).append(i)
+                rtol = int(round(cfg.roll_len_tol_mm * MM))
+                K = max(1, int(cfg.roll_len_classes))
+                for g, idx in groups.items():
+                    if len(idx) < 2:
+                        continue
+                    RL = [m.NewIntVar(int(round(lo_len * MM)),
+                                      int(round(hi_len * MM)), f"RL{g}_{k}")
+                          for k in range(K)]
+                    for k in range(K - 1):   # ordered, to break the symmetry
+                        m.Add(RL[k] <= RL[k + 1])
+                    for i in idx:
+                        if K == 1:
+                            m.Add(Lv[i] - RL[0] <= rtol)
+                            m.Add(RL[0] - Lv[i] <= rtol)
+                            continue
+                        sel = [m.NewBoolVar("") for _ in range(K)]
+                        m.AddExactlyOne(sel)
+                        for k in range(K):
+                            m.Add(Lv[i] - RL[k] <= rtol).OnlyEnforceIf(sel[k])
+                            m.Add(RL[k] - Lv[i] <= rtol).OnlyEnforceIf(sel[k])
+
         if cfg.use_notch:
             tol = int(round(cfg.notch_tol_mm * MM))
             fr100 = [int(round(f * 100)) for f in cfg.cord_fracs]
@@ -237,7 +416,8 @@ def solve_cpsat(prob, time_limit=None, workers=None, log=False, trace=False):
                         int(round((hi_len * f + cfg.notch_tol_mm) * MM)))
                        for f in cfg.cord_fracs]
             for i in range(n):
-                for nu in meta[i].get("notches_mm", []):
+                per_notch = []
+                for nu in sorted(meta[i].get("notches_mm", [])):
                     off = int(round(nu * MM))
                     sel = []
                     for c in range(len(cfg.cord_fracs)):
@@ -265,6 +445,20 @@ def solve_cpsat(prob, time_limit=None, workers=None, log=False, trace=False):
                         sel.append(unplaced)
                         notch_slack.append(unplaced)
                         m.AddExactlyOne(sel)
+                        per_notch.append(sel[:len(cfg.cord_fracs)])
+
+                if cfg.notch_order and len(per_notch) > 1:
+                    # Notches read down a fragment must take cords in the same
+                    # order.  Placed independently, as they were, two notches
+                    # on one fragment can both claim the same cord, which drops
+                    # exactly the relative spacing between them: the one piece
+                    # of notch evidence that does not depend on knowing where
+                    # the top of the slip is.
+                    for a, b in zip(per_notch, per_notch[1:]):
+                        for c1 in range(len(a)):
+                            for c2 in range(len(b)):
+                                if c2 <= c1:
+                                    m.AddBoolOr([a[c1].Not(), b[c2].Not()])
 
     scale = 1000
     obj = sum(int(round(w * scale)) * x[a] for a, w in zip(arcs, wts))
@@ -294,7 +488,7 @@ def solve_cpsat(prob, time_limit=None, workers=None, log=False, trace=False):
         # double-counts the same weak evidence along a chain and, at the poorly
         # preserved end, does more harm than good.
         hand = prob["hand"]
-        K = max(int(cfg.n_scribes), int(hand.max()) + 1)
+        K = int(prob.get("k_hand", max(int(cfg.n_scribes), int(hand.max()) + 1)))
         Hv = [m.NewIntVar(0, K - 1, f"h{i}") for i in range(n)]
         for (i, j) in arcs:
             m.Add(Hv[j] == Hv[i]).OnlyEnforceIf(x[(i, j)])
@@ -347,10 +541,133 @@ def solve_cpsat(prob, time_limit=None, workers=None, log=False, trace=False):
 
 
 # --------------------------------------------------------------------------
+# exact decomposition
+# --------------------------------------------------------------------------
+
+def _components(prob):
+    """Partition the fragments into groups that share no constraint.
+
+    Every variable of the model is per fragment: the position along the slip,
+    the latent length, width and hand, and the placement of each notch.  The
+    only thing that couples two fragments is a candidate arc between them, and
+    the gates delete most arcs before the solver ever sees them.  The problem
+    is therefore separable over the weakly connected components of the arc
+    graph, and solving each component on its own and concatenating the results
+    returns the optimum of the whole corpus, not an approximation of it.
+
+    The one exception is the roll-pooled length, which ties every fragment
+    recorded in one excavation square to a shared value.  Where that is in use
+    those fragments are placed in the same component, so the decomposition
+    stays exact.
+    """
+    n = prob["n"]
+    parent = list(range(n))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for (i, j) in prob["arcs"]:
+        union(i, j)
+
+    cfg = prob["cfg"]
+    if (cfg.use_roll_length and cfg.use_latent
+            and (cfg.use_length or cfg.use_notch)):
+        key = prob["roll"] if cfg.roll_key == "roll" else prob["unit"]
+        first = {}
+        for i in range(n):
+            g = int(key[i])
+            if g < 0:
+                continue
+            if g in first:
+                union(first[g], i)
+            else:
+                first[g] = i
+
+    comps = {}
+    for i in range(n):
+        comps.setdefault(find(i), []).append(i)
+    return list(comps.values())
+
+
+def _subproblem(prob, idx):
+    """The same problem restricted to a set of fragments, re-indexed."""
+    remap = {g: l for l, g in enumerate(idx)}
+    arcs, wts = [], []
+    for a, w in zip(prob["arcs"], prob["weights"]):
+        if a[0] in remap and a[1] in remap:
+            arcs.append((remap[a[0]], remap[a[1]]))
+            wts.append(w)
+    take = np.asarray(idx, np.int64)
+    return dict(n=len(idx), arcs=arcs, weights=np.array(wts, np.float64),
+                height=prob["height"][take], width=prob["width"][take],
+                hand=prob["hand"][take], unit=prob["unit"][take],
+                roll=prob["roll"][take],
+                meta=[prob["meta"][i] for i in idx], cfg=prob["cfg"],
+                k_hand=prob.get("k_hand"))
+
+
+def solve_decomposed(prob, time_limit=None, workers=None, min_size=2):
+    """Solve the corpus one connected component at a time.
+
+    Reported alongside the solution: how many components the corpus fell into
+    and how large the largest was, since those are what decide whether a corpus
+    can be solved to proven optimality at all.
+    """
+    import time as _time
+
+    comps = _components(prob)
+    big = [c for c in comps if len(c) >= min_size]
+    small = [i for c in comps if len(c) < min_size for i in c]
+    if small:
+        big.append(small)   # isolated fragments interact with nothing; one model
+    big.sort(key=len, reverse=True)
+
+    joins, obj, bound = [], 0.0, 0.0
+    statuses = []
+    t0 = _time.time()
+    for c in big:
+        sub = _subproblem(prob, c)
+        if sub["n"] == 0:
+            continue
+        r = solve_cpsat(sub, time_limit=time_limit, workers=workers,
+                        constants=True)
+        statuses.append(r["status"])
+        obj += r.get("objective", 0.0)
+        bound += r.get("bound", r.get("objective", 0.0))
+        joins += [(c[a], c[b]) for a, b in r["joins"]]
+    wall = _time.time() - t0
+
+    status = "OPTIMAL" if all(x in ("OPTIMAL", "EMPTY") for x in statuses) \
+        else ("FEASIBLE" if any(x in ("OPTIMAL", "FEASIBLE") for x in statuses)
+              else (statuses[0] if statuses else "EMPTY"))
+    return dict(joins=joins, objective=obj, bound=bound, status=status,
+                wall=wall, gap=(bound - obj) / max(abs(obj), 1e-9),
+                n_components=len(comps),
+                max_component=max((len(c) for c in comps), default=0),
+                n_solved=len(big))
+
+
+# --------------------------------------------------------------------------
 # chains
 # --------------------------------------------------------------------------
 
 DEFAULT_P_GRID = (0.30, 0.50, 0.70, 0.85, 0.95, 0.99, 0.997, 0.9997)
+
+# Wider grid used from the revision onward.  A constraint that enters the
+# objective rather than the arc set shifts every arc weight by a constant, so a
+# grid that stops at 0.30 can put the optimum of one method inside the search
+# and the optimum of another outside it.  Comparing methods at their own best
+# operating point requires a grid wide enough that none of them is pinned to an
+# endpoint, and every experiment reports whether any method was.
+WIDE_P_GRID = (0.10, 0.20, 0.30, 0.50, 0.70, 0.85, 0.95, 0.99, 0.997, 0.9997)
 
 
 def theta_grid(ps=DEFAULT_P_GRID):

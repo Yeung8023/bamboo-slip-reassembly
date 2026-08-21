@@ -89,13 +89,52 @@ class DamageSpec:
 
 
 @dataclass
+class DepositionSpec:
+    """How the slips were deposited, how the fragments dispersed, and how the
+    excavation recorded where each one was found.
+
+    The excavation context of a fragment is the single most valuable piece of
+    evidence the assembly model uses, so how it is simulated decides how much
+    of the reported gain is real.  ``model="uniform"`` is the original,
+    deliberately optimistic device: every fragment of a slip carries the same
+    unit label and that label is never wrong, which is the best case an
+    excavation could conceivably deliver.  ``model="spatial"`` is the
+    defensible one.  Slips are bound into rolls, rolls are laid on the chamber
+    floor, each fragment is displaced from where it was deposited, and the unit
+    recorded for it is whichever square of the excavation grid it was finally
+    recovered from.
+
+    Two things make the spatial model non-trivial even before any dispersion.
+    A fragment sits at its own height along the slip, so a 278 mm slip lying
+    across a 250 mm grid already spans two squares.  And the record itself is
+    imperfect: some fragments arrive with no context at all, and some are filed
+    under the wrong square.
+    """
+
+    model: str = "uniform"           # "uniform" (as published) | "spatial"
+    slips_per_roll: int = 30         # slips bound together into one roll
+    roll_len_sigma_mm: float = 0.0   # 0 => slip lengths iid across the corpus;
+                                     # >0 => one standard length per roll,
+                                     # trimmed to this tolerance
+    slip_pitch_mm: float = 9.0       # spacing of slips across a rolled bundle
+    roll_gap_mm: float = 120.0       # clear floor between adjacent rolls
+    disperse_sigma_mm: float = 30.0  # post-depositional scatter of a fragment
+    block_mm: float = 250.0          # side of one square of the excavation grid
+
+
+@dataclass
 class ObservationSpec:
     """Noise on the metadata a conservator would actually record."""
 
     width_sigma_mm: float = 0.12
     notch_sigma_mm: float = 0.6
     hand_accuracy: float = 0.80  # off-the-shelf writer-ID model
-    unit_known_frac: float = 1.0  # excavation records are exact by default
+    # Excavation records are neither complete nor error-free.  A fragment with
+    # no recorded context must not be excluded from anything; a fragment filed
+    # under the wrong square is worse than one with no record at all, because
+    # the model will believe it.
+    unit_known_frac: float = 1.0  # fraction of fragments with any context at all
+    unit_error_frac: float = 0.0  # of those, fraction filed under a neighbour
 
 
 @dataclass
@@ -105,6 +144,7 @@ class InstanceSpec:
     corpus: CorpusSpec = field(default_factory=CorpusSpec)
     damage: DamageSpec = field(default_factory=DamageSpec)
     obs: ObservationSpec = field(default_factory=ObservationSpec)
+    dep: DepositionSpec = field(default_factory=DepositionSpec)
 
 
 # --------------------------------------------------------------------------
@@ -474,17 +514,93 @@ def _edge_descriptors(img, mask, side, support=None, loss=None, rng=None,
     return prof.astype(np.float32), patch
 
 
-def generate_instance(spec: InstanceSpec, render_gallery: int = 0):
+# --------------------------------------------------------------------------
+# deposition and excavation recording
+# --------------------------------------------------------------------------
+
+def _roll_layout(spec: InstanceSpec):
+    """Where every slip was deposited, and what length its roll was trimmed to.
+
+    Slips are bound into rolls; a roll is laid flat on the chamber floor with
+    its slips side by side; rolls are laid out with clear floor between them.
+    Everything here is deterministic given the instance seed, so the layout can
+    be regenerated and inspected independently of the imagery.
+
+    Returns per-slip arrays: the roll each slip belongs to, the across-floor
+    coordinate of the slip, the along-floor coordinate of its top end, and the
+    length its roll was trimmed to (or NaN when lengths are drawn per slip).
+    """
+    C, D = spec.corpus, spec.dep
+    n = spec.n_slips
+    rng = np.random.default_rng(spec.seed ^ 0x5EED)
+
+    per_roll = max(1, int(D.slips_per_roll))
+    n_rolls = int(np.ceil(n / per_roll))
+    roll_of = np.arange(n) // per_roll
+    idx_in_roll = np.arange(n) % per_roll
+
+    roll_w = per_roll * D.slip_pitch_mm
+    roll_l = C.length_mm[1]
+    n_cols = max(1, int(np.ceil(np.sqrt(n_rolls))))
+    col = roll_of % n_cols
+    row = roll_of // n_cols
+
+    x = col * (roll_w + D.roll_gap_mm) + idx_in_roll * D.slip_pitch_mm
+    y0 = row * (roll_l + D.roll_gap_mm)
+
+    # A roll is a manuscript, and a manuscript was trimmed to one standard
+    # length.  Different texts in one tomb have different standards, which is
+    # why the corpus as a whole still spans the full range.
+    if D.roll_len_sigma_mm > 0:
+        std = rng.uniform(C.length_mm[0], C.length_mm[1], n_rolls)
+        slip_len = np.clip(std[roll_of] + rng.normal(0, D.roll_len_sigma_mm, n),
+                           C.length_mm[0], C.length_mm[1])
+    else:
+        slip_len = np.full(n, np.nan)
+
+    return dict(roll_of=roll_of, x_mm=x, y0_mm=y0, slip_len=slip_len,
+                n_rolls=n_rolls)
+
+
+def _record_unit(rng, layout, sid, y_mid_mm, spec: InstanceSpec):
+    """The excavation square a fragment was finally recovered from.
+
+    The fragment is displaced from where it was deposited, the grid is then
+    laid over the floor, and the record that reaches the laboratory is the
+    square it came out of, sometimes missing and sometimes wrong.
+    """
+    D, O = spec.dep, spec.obs
+    x = layout["x_mm"][sid] + rng.normal(0, D.disperse_sigma_mm)
+    y = layout["y0_mm"][sid] + y_mid_mm + rng.normal(0, D.disperse_sigma_mm)
+    r = int(np.floor(y / D.block_mm))
+    c = int(np.floor(x / D.block_mm))
+    if rng.random() >= O.unit_known_frac:
+        return -1, (-999, -999)          # recovered without a context record
+    if rng.random() < O.unit_error_frac:  # filed under the wrong square
+        r += int(rng.integers(-1, 2))
+        c += int(rng.integers(-1, 2))
+    return r * 100003 + c, (r, c)
+
+
+def generate_instance(spec: InstanceSpec, render_gallery: int = 0,
+                      substrate=None):
     """Build one benchmark instance.
 
     Returns a dict with per-fragment descriptors, observed metadata, and full
     ground truth (slip membership, order, and which adjacent pairs physically
     conjoin as opposed to being separated by lost material).
+
+    ``substrate`` replaces the rendered bamboo and its rendered writing with an
+    image supplied by the caller, given as ``substrate(sid, rng, h, w)``. It is
+    how a corpus is built from photographs of real slips: the fracture, the
+    taphonomy and the descriptors are then computed by exactly the code used
+    for the synthetic corpora, on real material.
     """
     import cv2
 
     rng = np.random.default_rng(spec.seed)
     C, D, O = spec.corpus, spec.damage, spec.obs
+    layout = _roll_layout(spec) if spec.dep.model == "spatial" else None
 
     frags = []
     gallery = []
@@ -496,6 +612,20 @@ def generate_instance(spec: InstanceSpec, render_gallery: int = 0):
         W = srng.uniform(*C.width_mm)
         scribe = int(srng.integers(C.n_scribes))
         unit = int(srng.integers(C.n_units))
+        # The draw above is kept even under the spatial model so that the two
+        # models generate identical imagery from the same seed and differ only
+        # in the excavation record, which is what the ablation is about.
+        roll = -1
+        drng = None
+        if layout is not None:
+            roll = int(layout["roll_of"][sid])
+            # Dispersion and the excavation record are drawn from their own
+            # stream, so that a corpus generated under the spatial model is the
+            # same corpus as under the uniform one and differs only in what the
+            # excavation wrote down.
+            drng = np.random.default_rng([abs(spec.seed) + 1, sid + 1, 991])
+            if np.isfinite(layout["slip_len"][sid]):
+                L = float(layout["slip_len"][sid])
         cords = np.sort(np.array([
             L * f + srng.normal(0, C.cord_jitter_mm) for f in C.cord_fracs
         ]))
@@ -503,10 +633,13 @@ def generate_instance(spec: InstanceSpec, render_gallery: int = 0):
 
         h = int(round(L * PX_PER_MM))
         w = int(round(W * PX_PER_MM))
-        img = _bamboo_substrate(srng, h, w)
-        style = _scribe_style(srng, scribe, C.n_scribes)
-        img = _draw_glyphs(img, srng, style, C.glyph_pitch_mm * PX_PER_MM,
-                           1.0 - D.ink_fade * srng.random())
+        if substrate is None:
+            img = _bamboo_substrate(srng, h, w)
+            style = _scribe_style(srng, scribe, C.n_scribes)
+            img = _draw_glyphs(img, srng, style, C.glyph_pitch_mm * PX_PER_MM,
+                               1.0 - D.ink_fade * srng.random())
+        else:
+            img = substrate(sid, srng, h, w)
 
         # binding notches cut into the right edge
         notch_mask = np.ones((h, w), np.float32)
@@ -542,7 +675,7 @@ def generate_instance(spec: InstanceSpec, render_gallery: int = 0):
         profiles.append(np.zeros(w, np.float32))
 
         slips_meta.append(dict(slip_id=sid, length_mm=float(L), width_mm=float(W),
-                               scribe=scribe, unit=unit,
+                               scribe=scribe, unit=unit, roll=roll,
                                cords_mm=[float(c) for c in cords],
                                n_pieces=len(bounds) - 1))
 
@@ -646,13 +779,19 @@ def generate_instance(spec: InstanceSpec, render_gallery: int = 0):
                              if p["y_lo_mm"] <= c <= p["y_hi_mm"]]
             hand = scribe if srng.random() < O.hand_accuracy else \
                 int(srng.integers(C.n_scribes))
+            f_unit, f_rc = unit, (unit, 0)
+            if layout is not None:
+                f_unit, f_rc = _record_unit(
+                    drng, layout, sid,
+                    0.5 * (p["y_lo_mm"] + p["y_hi_mm"]), spec)
             frags.append(dict(
                 frag_id=fid, slip_id=sid, order=k,
                 y_lo_mm=float(p["y_lo_mm"]), y_hi_mm=float(p["y_hi_mm"]),
                 height_mm=float(p["y_hi_mm"] - p["y_lo_mm"]),
                 true_width_mm=float(W), obs_width_mm=float(obs_w),
                 notches_mm=local_notches, true_scribe=scribe, obs_hand=hand,
-                unit=unit, top_gap=float(p["top_gap"]), bot_gap=float(p["bot_gap"]),
+                unit=int(f_unit), unit_rc=[int(f_rc[0]), int(f_rc[1])], roll=roll,
+                top_gap=float(p["top_gap"]), bot_gap=float(p["bot_gap"]),
                 top_prof=tp, bot_prof=bp, top_patch=tpatch, bot_patch=bpatch,
             ))
             if len(gallery) < render_gallery:

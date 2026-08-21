@@ -73,11 +73,17 @@ def table_main(runs, out):
 def table_exchange(path, out):
     d = pd.read_csv(path)
     lines = [r"\begin{table}[htbp]", r"\centering\small",
-             r"\caption{\textbf{What the constraint set is worth, in units of "
-             r"matcher accuracy.} For each state, the Top-1 accuracy that "
-             r"bipartite matching would require in order to reach the slip "
-             r"partition the proposed model attains at the accuracy it "
-             r"actually had.}", r"\label{tab:exchange}",
+             r"\caption{\textbf{Constraint set expressed as an equivalent "
+             r"gain in pairwise matching accuracy.} For each preservation "
+             r"state: the measured Top-1 accuracy of the matcher; the slip "
+             r"partition index attained by the proposed model at that "
+             r"accuracy; and the Top-1 accuracy that maximum weight bipartite "
+             r"matching would require in order to attain the same partition "
+             r"index, obtained by interpolating its performance along the "
+             r"preservation ladder. \emph{Unreachable} denotes states at "
+             r"which bipartite matching does not attain that partition index "
+             r"at any accuracy, including that of a perfect matcher.}",
+             r"\label{tab:exchange}",
              r"\begin{tabular}{lrrr}", r"\toprule",
              r"State & Matcher Top-1 & Proposed ARI & Equivalent Top-1 \\",
              r"\midrule"]

@@ -12,3 +12,10 @@ HANDOFF.md
 
 __pycache__/
 *.pyc
+
+# DeepJiandu photographs: 3 GB, redistributed by Science Data Bank under its
+# own DOI, and rebuilt from there by revision/code/exp_real.py. Only the list
+# of files that passed segmentation is kept, so the corpus is reproducible.
+revision/data_real/*.zip
+revision/data_real/images/
+revision/logs/
