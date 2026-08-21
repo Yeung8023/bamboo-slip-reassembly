@@ -35,6 +35,28 @@ The published behaviour is reproduced bit for bit: `code/test_invariants.py`
 regenerates a corpus and a solution with the defaults and compares them against
 the submitted results.
 
+## Figures
+
+Every figure the manuscript and the Supplementary Information use is written to
+`figs/` by the scripts below. `\graphicspath` no longer falls back to the
+submitted `../figs/`, so a figure that fails to regenerate is an error rather
+than a silently stale image.
+
+```bash
+$PY revision/code/figures_rev.py                    # figR*, the revision figures
+$PY revision/code/fig_case_rev.py                   # Fig. 9, checked against rerun_case.csv
+$PY src/figure_pipeline.py  --out revision/figs/fig0_overview.png
+$PY src/figures_qual.py     --figs revision/figs    # Figs. 1 and 2
+$PY src/figures_results.py  --figs revision/figs    # Fig. 4 and Supplementary Figs. 1 to 3
+$PY src/analysis.py         --figs revision/figs    # Supplementary Figs. 4 and 5
+```
+
+Typography is set from the width a figure is printed at, not the width it is
+drawn at: `style.scale_for(canvas_width)` before `plt.subplots`, and
+`style.legend_below()` for a legend that cannot cross a curve. The targets are
+in `style.PRINTED`, and follow the Nature Portfolio guidance of 5 pt minimum
+and 7 pt preferred.
+
 ## Reproducing
 
 ```bash

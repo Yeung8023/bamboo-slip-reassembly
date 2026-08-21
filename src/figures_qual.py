@@ -34,9 +34,11 @@ def _descs(inst):
 def fig_benchmark(model, out, seed=11):
     """What the benchmark looks like, and why ranking alone cannot finish."""
     style.apply()
-    fig = plt.figure(figsize=(14.4, 4.6))
-    gs = fig.add_gridspec(1, 4, width_ratios=[1.45, 1.0, 1.15, 1.15],
-                          wspace=0.42, top=0.84)
+    s = style.scale_for(9.6)
+    fig = plt.figure(figsize=(9.6, 7.4))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1.25, 1.0],
+                          height_ratios=[1.0, 1.0], wspace=0.34, hspace=0.70,
+                          top=0.93)
 
     # (a) an intact slip, torn into fragments
     inst = synth.generate_instance(
@@ -60,10 +62,9 @@ def fig_benchmark(model, out, seed=11):
         tag = f"{f['height_mm']:.0f} mm"
         if f["bot_gap"] > 0.5:
             tag += f"\n{f['bot_gap']:.0f} mm lost"
-        ax.set_xlabel(tag, fontsize=6.5, color=style.INK_SECONDARY,
+        ax.set_xlabel(tag, fontsize=6.5 * s, color=style.INK_SECONDARY,
                       fontweight="normal", labelpad=2)
-    fig.text(0.075, 0.90, "a)  One slip, fractured and degraded", fontsize=9,
-             fontweight="bold")
+    fig.text(0.055, 0.945, "a)", fontsize=9 * s, fontweight="bold")
 
     # (b) the fracture signature: true partner against the best impostor
     ax = fig.add_subplot(gs[1])
@@ -84,36 +85,52 @@ def fig_benchmark(model, out, seed=11):
             fm[a]["bot_prof"], fm[i]["top_prof"])[0, 1]
             if fm[i]["top_prof"].std() > 1e-6 else -1)
         ax.plot(fm[imp]["top_prof"], yy, color=style.MUTED, lw=1.1, ls=":",
-                label="best impostor in this corpus")
-    ax.set_xlabel("Break offset (px)")
-    ax.set_ylabel("Across slip width")
-    ax.legend(fontsize=6.2, loc="lower center", bbox_to_anchor=(0.5, -0.02))
-    ax.set_title("b)  Fracture signature", loc="left", fontsize=9, pad=8)
+                label="best impostor")
+    ax.set_xlabel("break offset (px)")
+    ax.set_ylabel("across slip width")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.26),
+              frameon=False, borderaxespad=0.0, handlelength=1.6)
+    ax.set_title("b)", loc="left", fontsize=9 * s, pad=6)
     style.finish(ax, grid_axis="both")
 
     # (c) matcher accuracy along the preservation ladder
     ax = fig.add_subplot(gs[2])
     ks = np.array([1, 5, 10, 50])
+    ends = []
     for i, (k, lab, _) in enumerate(pres.LADDER):
         ins = synth.generate_instance(
             synth.InstanceSpec(n_slips=1800, seed=0, damage=pres.damage(k)))
         S = M.score_matrix(model, _descs(ins))
         acc = M.topk_accuracy(S, ins["joins"], ks=tuple(ks))
-        ax.plot(ks, [acc[f"top{j}"] for j in ks],
-                color=style.SEQ_BLUE[-(i + 2)], marker=style.MARKERS[i],
-                lw=1.4, label=f"{k} {lab}")
+        ys = [acc[f"top{j}"] for j in ks]
+        ax.plot(ks, ys, color=style.SEQ_BLUE[-(i + 2)],
+                marker=style.MARKERS[i], lw=1.4)
+        ends.append((ys[-1], k, style.SEQ_BLUE[-(i + 2)]))
+    # The five curves are named where they end rather than in a key that would
+    # have to sit on top of them. The best preserved three converge, so the
+    # labels are pushed apart far enough to stay legible.
+    # placed from the top down and clamped inside the axes, so that a label
+    # pushed off a converging curve cannot leave the panel
+    ends.sort(reverse=True)
+    gap, prev = 0.062, 1.02
+    for y, k, col in ends:
+        yy = min(y, prev - gap) if y > prev - gap else y
+        ax.annotate(k, (ks[-1] * 1.16, yy), va="center",
+                    fontsize=style.PRINTED["tick"] * s, color=col,
+                    fontweight="bold")
+        prev = yy
     ax.axhline(WISEPANDA_TOP50, color=style.MAGENTA, ls="--", lw=1.1)
     ax.annotate("WisePanda, Top-50 = 0.52\n(>1000 candidates)",
-                (1.15, WISEPANDA_TOP50), fontsize=6.3, color=style.MAGENTA,
-                va="bottom")
+                (4.2, 0.045), fontsize=6.3 * s, color=style.MAGENTA,
+                va="bottom", ha="left")
     ax.set_xscale("log")
     ax.set_xticks(ks)
     ax.set_xticklabels(ks)
-    ax.set_xlabel("k (candidates inspected)\n5131-fragment corpus")
-    ax.set_ylabel("Top-k accuracy")
+    ax.set_xlim(0.85, ks[-1] * 1.9)
+    ax.set_xlabel("candidates inspected, $k$")
+    ax.set_ylabel("top-$k$ accuracy")
     ax.set_ylim(0, 1.02)
-    ax.legend(fontsize=6.2, loc="lower right")
-    ax.set_title("c)  Matcher accuracy", loc="left", fontsize=9)
+    ax.set_title("c)", loc="left", fontsize=9 * s)
     style.finish(ax, grid_axis="both")
 
     # (d) candidates conflict: how many fragments claim the same partner
@@ -129,10 +146,10 @@ def fig_benchmark(model, out, seed=11):
                 color=[style.BLUE, style.ORANGE][i], lw=1.4,
                 label=f"top-{kk} lists")
     ax.set_yscale("log")
-    ax.set_xlabel("Times a fragment is claimed as partner")
-    ax.set_ylabel("Fraction of fragments")
-    ax.legend(fontsize=6.5)
-    ax.set_title("d)  Candidates conflict", loc="left", fontsize=9, pad=8)
+    ax.set_xlabel("times claimed as partner")
+    ax.set_ylabel("fraction of fragments")
+    ax.legend()
+    ax.set_title("d)", loc="left", fontsize=9 * s, pad=6)
     style.finish(ax, grid_axis="both")
 
     fig.savefig(out, bbox_inches="tight")
@@ -176,6 +193,8 @@ def fig_case(model, out, n_slips=1155, seed=4242, state="P4"):
     mo = baselines.matching_only(meta, W, cfg)
     e_match = metrics.evaluate(n, mo, inst["joins"], slip_of)
 
+    s = style.scale_for(12.4)
+
     fig, axes = plt.subplots(1, 3, figsize=(12.4, 3.5),
                              gridspec_kw=dict(width_ratios=[1.15, 1, 1.25]))
 
@@ -188,10 +207,10 @@ def fig_case(model, out, n_slips=1155, seed=4242, state="P4"):
     ax.bar(xx + 0.2, [e_full[k] for k in keys], 0.38, color=style.BLUE,
            label="Latent-slip assembly")
     ax.set_xticks(xx)
-    ax.set_xticklabels(lbl, fontsize=7)
+    ax.set_xticklabels(lbl, fontsize=7 * s)
     ax.set_ylim(0, 1)
-    ax.legend(fontsize=7)
-    ax.set_title("a)  Reconstruction quality", loc="left", fontsize=9)
+    ax.legend()
+    ax.set_title("a)  Reconstruction quality", loc="left", fontsize=9 * s)
     style.finish(ax)
 
     ax = axes[1]
@@ -204,8 +223,8 @@ def fig_case(model, out, n_slips=1155, seed=4242, state="P4"):
     ax.bar(xx + 0.2, pl, 0.38, color=style.BLUE, label="reconstructed")
     ax.set_xlabel("Fragments per reconstructed slip")
     ax.set_ylabel("Count")
-    ax.legend(fontsize=7)
-    ax.set_title("b)  Chain-length distribution", loc="left", fontsize=9)
+    ax.legend()
+    ax.set_title("b)  Chain-length distribution", loc="left", fontsize=9 * s)
     style.finish(ax)
 
     ax = axes[2]
@@ -229,12 +248,12 @@ def fig_case(model, out, n_slips=1155, seed=4242, state="P4"):
            f"  exact slips          {e_full['exact_slip']:.3f}\n"
            f"  cross-slip errors    {e_full['cross_slip_joins']}\n"
            f"  solver status        {r['status']}")
-    ax.text(0, 1, txt, fontsize=7.4, family="monospace", va="top",
+    ax.text(0, 1, txt, fontsize=7.4 * s, family="monospace", va="top",
             color=style.INK)
-    ax.set_title("c)  Case summary", loc="left", fontsize=9)
+    ax.set_title("c)  Case summary", loc="left", fontsize=9 * s)
 
     fig.suptitle("Demonstration at the scale of the Shuihudi Qin corpus "
-                 "(Yunmeng, Hubei)", y=1.03, fontsize=11, fontweight="bold")
+                 "(Yunmeng, Hubei)", y=1.03, fontsize=11 * s, fontweight="bold")
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
     return dict(n_frag=n, n_join=len(inst["joins"]), acc=acc,

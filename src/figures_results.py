@@ -55,6 +55,8 @@ def fig_calibration(model, out, state="P4", n_slips=400, seed=0, n_neg=200000):
                   for a, b in zip(ii[keep], jj[keep])])
     neg = S[ii[keep][m], jj[keep][m]]
 
+    s = style.scale_for(12.4)
+
     fig, axes = plt.subplots(1, 3, figsize=(12.4, 3.4))
 
     ax = axes[0]
@@ -65,8 +67,7 @@ def fig_calibration(model, out, state="P4", n_slips=400, seed=0, n_neg=200000):
             label="true joins")
     ax.set_xlabel("matcher score $s_{ij}$")
     ax.set_ylabel("density")
-    ax.set_title("Score separation")
-    ax.legend(fontsize=8)
+    ax.legend()
     style.finish(ax)
 
     ax = axes[1]
@@ -78,14 +79,11 @@ def fig_calibration(model, out, state="P4", n_slips=400, seed=0, n_neg=200000):
     ax.plot(rc, pr, color=style.RAMP[2], lw=2.0)
     ax.set_xlabel("recall")
     ax.set_ylabel("precision")
-    ax.set_title(f"Pairwise PR (AP {auc(rc, pr):.3f})")
-    ax.text(0.96, 0.82, f"{len(pos)} joins vs {len(neg)} non-joins",
-            transform=ax.transAxes, ha="right", fontsize=8.2,
-            color=style.INK)
     ax.set_ylim(0, 1.02)
     style.finish(ax, grid_axis="both")
-    ax.text(0.96, 0.9, f"ROC AUC {auc(fpr, tpr):.3f}", transform=ax.transAxes,
-            ha="right", fontsize=9.0, color=style.INK, fontweight="bold")
+    ax.text(0.94, 0.90, f"ROC AUC {auc(fpr, tpr):.3f}", transform=ax.transAxes,
+            ha="right", fontsize=style.PRINTED["tick"] * s, color=style.INK,
+            fontweight="bold")
 
     ax = axes[2]
     # The Platt fit is made at balanced class ratio on purpose, so that it
@@ -115,17 +113,14 @@ def fig_calibration(model, out, state="P4", n_slips=400, seed=0, n_neg=200000):
                 / max(np.sum(ns), 1))
     ax.set_xlabel("predicted probability")
     ax.set_ylabel("observed frequency")
-    ax.set_title("Reliability at balanced ratio")
     ax.set_xlim(0, 1); ax.set_ylim(0, 1)
     ax.text(0.04, 0.92, f"ECE = {ece:.3f}", transform=ax.transAxes,
-            fontsize=9.0, color=style.INK, fontweight="bold")
-    ax.legend(fontsize=8, loc="lower right")
+            fontsize=style.PRINTED["tick"] * s, color=style.INK,
+            fontweight="bold")
+    ax.legend(loc="lower right")
     style.finish(ax, grid_axis="both")
 
     style.panel_titles(axes)
-    fig.suptitle(f"Matcher scores and their calibration ({state}, "
-                 f"{len(meta)} fragments)", y=1.04, fontsize=11,
-                 fontweight="bold")
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
     print("wrote", out)
@@ -157,6 +152,8 @@ def fig_convergence(model, out, state="P4", sizes=(150, 400, 900),
         print(f"  n={len(meta)} arcs={len(prob['arcs'])} "
               f"{r['status']} {r['wall']:.1f}s")
 
+    s = style.scale_for(12.6)
+
     fig, axes = plt.subplots(1, 3, figsize=(12.6, 3.5))
 
     ax = axes[0]
@@ -172,8 +169,6 @@ def fig_convergence(model, out, state="P4", sizes=(150, 400, 900),
     ax.set_xscale("log")
     ax.set_xlabel("wall clock time (s)")
     ax.set_ylabel("objective")
-    ax.set_title("Convergence: incumbent (solid), bound (dashed)")
-    ax.legend(fontsize=8, loc="lower right")
     style.finish(ax, grid_axis="both")
 
     ax = axes[1]
@@ -186,8 +181,7 @@ def fig_convergence(model, out, state="P4", sizes=(150, 400, 900),
                 color=style.SEQ_BLUE[-(k + 2)], lw=1.7, label=f"{n}")
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("wall clock time (s)")
-    ax.set_ylabel("optimality gap (%)")
-    ax.set_title("Gap closure")
+    ax.set_ylabel("gap (%)")
     style.finish(ax, grid_axis="both")
 
     ax = axes[2]
@@ -199,17 +193,16 @@ def fig_convergence(model, out, state="P4", sizes=(150, 400, 900),
     ax.set_xscale("log"); ax.set_yscale("log")
     lo = np.polyfit(np.log(st.n), np.log(st.arcs), 1)[0]
     ax.text(0.05, 0.92, f"arcs $\\propto n^{{{lo:.2f}}}$",
-            transform=ax.transAxes, fontsize=8, color=style.ORANGE)
+            transform=ax.transAxes, fontsize=style.PRINTED["tick"] * s,
+            color=style.ORANGE)
     ax2 = ax.twinx()
     ax2.plot(st.n, st.wall, color=style.BLUE, marker="o", lw=1.6)
     ax2.set_ylabel("solve time (s)", color=style.BLUE)
     ax2.set_yscale("log")
-    ax.set_title("Problem size and cost")
     style.finish(ax, grid_axis="both")
 
     style.panel_titles(axes)
-    fig.suptitle("Solver convergence and computational cost", y=1.04,
-                 fontsize=11, fontweight="bold")
+    style.legend_below(fig, axes[0], ncol=3, bottom=0.30)
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
     print("wrote", out)
@@ -230,6 +223,7 @@ def fig_pr_and_spread(frontier, runs, out):
     r = pd.read_csv(runs)
     states = sorted(set(d.state))
 
+    s = style.scale_for(3.5 * (len(states) + 1))
     fig, axes = plt.subplots(1, len(states) + 1,
                              figsize=(3.5 * (len(states) + 1), 3.4))
     for ax, st in zip(axes, states):
@@ -252,10 +246,9 @@ def fig_pr_and_spread(frontier, runs, out):
         ax.set_xlim(mx - px, Mx + px)
         ax.set_ylim(my - py, My + py)
         ax.set_xlabel("recall")
-        ax.set_ylabel("precision")
-        ax.set_title(f"{st}  {style.STATE_LABELS[st].split(' ', 1)[1]}")
+        if ax is axes[0]:
+            ax.set_ylabel("precision")
         style.finish(ax, grid_axis="both")
-    axes[0].legend(fontsize=7.6, loc="lower left")
 
     ax = axes[-1]
     keep = ["matching", "morph", "length", "full", "latent"]
@@ -274,8 +267,7 @@ def fig_pr_and_spread(frontier, runs, out):
     ax.set_xticks(range(1, len(keep) + 1))
     ax.set_xticklabels(["match", "+morph", "+len", "pairwise", "latent"],
                        fontsize=8)
-    ax.set_ylabel("slip partition (ARI)")
-    ax.set_title("Spread over seeds (P4)")
+    ax.set_ylabel("partition index")
     style.finish(ax)
 
     from scipy.stats import ttest_rel, wilcoxon
@@ -290,12 +282,11 @@ def fig_pr_and_spread(frontier, runs, out):
         ax.text(0.5, -0.20, f"latent vs pairwise over {len(a)} seeds\n"
                 f"paired $t$: $p$={pv:.4f}   Wilcoxon: $p$={pw:.3f}",
                 transform=ax.transAxes, ha="center", va="top",
-                fontsize=7.6, color=style.INK, linespacing=1.3)
+                fontsize=style.PRINTED["tick"] * s, color=style.INK,
+                linespacing=1.3)
 
     style.panel_titles(axes)
-    fig.subplots_adjust(bottom=0.26)
-    fig.suptitle("Operating curves and the spread of the results", y=1.04,
-                 fontsize=11, fontweight="bold")
+    style.legend_below(fig, axes[0], ncol=2, bottom=0.34)
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
     print("wrote", out)
@@ -345,8 +336,10 @@ def fig_qualitative(model, out, state="P4", n_slips=60, seed=23):
         print("no chains to show")
         return
 
+    s = style.scale_for(1.5 * len(picks) + 1.2)
+
     fig, ax = plt.subplots(figsize=(1.5 * len(picks) + 1.2, 5.0))
-    ax.set_xlim(-0.1, len(picks)); ax.set_ylim(-0.30, 1.10)
+    ax.set_xlim(-0.34, len(picks) + 0.10); ax.set_ylim(-0.06, 1.06)
     ax.axis("off")
     cols = {"correct": style.RAMP[3],
             "wrong order or gap": style.ACCENT_SOFT,
@@ -366,20 +359,13 @@ def fig_qualitative(model, out, state="P4", n_slips=60, seed=23):
             ax.imshow(np.dstack([g["img"]] * 3 + [g["mask"]]),
                       extent=(x0, x1, y - hh, y), aspect="auto",
                       interpolation="bilinear", zorder=3)
-            ax.text(x1 + 0.03, y - hh / 2, f"slip {slip_of[fid]}", fontsize=6.0,
+            ax.text(x1 + 0.04, y - hh / 2, f"{slip_of[fid]}", fontsize=6.0 * s,
                     va="center", color=style.INK_SECONDARY)
             y -= hh + gap
         ax.plot([x0 - 0.09, x0 - 0.09], [0.0, 1.0], color=cols[kind], lw=3.4,
                 solid_capstyle="butt", zorder=4)
-        ax.text(x0 - 0.13, 0.5, kind, rotation=90, ha="right", va="center",
-                fontsize=6.8, color=cols[kind], fontweight="bold")
-    ax.text(-0.1, 1.05, "Each column is one reconstructed chain. The true slip "
-            "id of every fragment is given at its right.\nA correct chain has "
-            "one id throughout; a fused chain does not.",
-            fontsize=7.4, color=style.INK_SECONDARY, va="bottom",
-            linespacing=1.35)
-    fig.suptitle("What success and failure look like", y=1.11,
-                 fontsize=11, fontweight="bold")
+        ax.text(x0 - 0.16, 0.5, kind, rotation=90, ha="right", va="center",
+                fontsize=6.8 * s, color=cols[kind], fontweight="bold")
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
     print("wrote", out)

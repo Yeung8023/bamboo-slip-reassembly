@@ -122,6 +122,63 @@ def apply() -> None:
     })
 
 
+# Width, in inches, that a figure actually occupies on the page. The
+# manuscript places figures at 0.95\textwidth and \textwidth is 372pt, so a
+# figure drawn on a wider canvas is reduced by the ratio of the two before a
+# reader ever sees it. Typography has to be authored for the printed size, not
+# for the canvas: a 9pt label on an 11 inch canvas prints at 4pt, which is
+# below what any journal accepts.
+PLACED_IN = 0.95 * 372.0 / 72.0
+
+# Target sizes as printed. npj Heritage Science follows the Nature Portfolio
+# guidance of 5pt minimum and 7pt preferred for figure text.
+PRINTED = {
+    "font": 7.0, "title": 8.0, "label": 7.0, "legend": 6.2, "tick": 6.2,
+    "linewidth": 0.85, "markersize": 2.4, "axes_lw": 0.42, "grid_lw": 0.34,
+    "tick_len": 1.8,
+}
+
+
+def scale_for(fig_width_in: float, placed_in: float = PLACED_IN) -> float:
+    """Set typography so a figure drawn this wide prints at PRINTED sizes.
+
+    Returns the scale factor, so that sizes passed directly to a plotting call
+    (marker size, cap size, an explicit fontsize) can be scaled with it.
+    """
+    s = float(fig_width_in) / float(placed_in)
+    mpl.rcParams.update({
+        "font.size": PRINTED["font"] * s,
+        "axes.titlesize": PRINTED["title"] * s,
+        "axes.labelsize": PRINTED["label"] * s,
+        "legend.fontsize": PRINTED["legend"] * s,
+        "xtick.labelsize": PRINTED["tick"] * s,
+        "ytick.labelsize": PRINTED["tick"] * s,
+        "lines.linewidth": PRINTED["linewidth"] * s,
+        "lines.markersize": PRINTED["markersize"] * s,
+        "axes.linewidth": PRINTED["axes_lw"] * s,
+        "grid.linewidth": PRINTED["grid_lw"] * s,
+        "xtick.major.width": 0.6 * s,
+        "ytick.major.width": 0.6 * s,
+    })
+    return s
+
+
+
+def legend_below(fig, ax, ncol=4, bottom=0.30):
+    """One shared legend under the panels.
+
+    A legend inside an axes has to sit somewhere, and on a panel printed 1.4 in
+    wide every corner already holds a curve. Below the panels is the only
+    placement that cannot cross the data.
+    """
+    h, l = ax.get_legend_handles_labels()
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=bottom)
+    fig.legend(h, l, loc="lower center", ncol=ncol, frameon=False,
+               bbox_to_anchor=(0.5, 0.005), handletextpad=0.5,
+               columnspacing=1.4)
+
+
 def cjk_font() -> str | None:
     """Locate an installed CJK face so site names render in figures."""
     from matplotlib import font_manager
@@ -147,7 +204,8 @@ def finish(ax, *, grid_axis: str = "y") -> None:
     """Apply the recessive grid convention to an axes."""
     ax.set_axisbelow(True)
     ax.grid(True, axis=grid_axis, alpha=0.7)
-    ax.tick_params(length=3)
+    ax.tick_params(length=PRINTED["tick_len"]
+                   * mpl.rcParams["font.size"] / PRINTED["font"])
 
 
 def tex_label(s: str) -> str:

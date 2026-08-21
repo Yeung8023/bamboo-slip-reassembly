@@ -229,8 +229,6 @@ def stage_b(ax, inst, ids, x0):
             color=style.BLUE, va="bottom", ha="right")
     ax.text(bx + w / 2, Y1 - 3.9, "ch 0 texture", fontsize=FS_TINY,
             color=INK, va="top", ha="center")
-    bracket(ax, bx, Y1 - 3.1, bx + w, Y1 - 3.1, "48 columns", off=0.7,
-            fs=FS_TINY)
     bracket(ax, bx - 0.5, Y1 - 2.6, bx - 0.5, Y1 + 2.8, "32", off=0.7,
             fs=FS_TINY)
     ax.text(bx + w / 2, Y1 - 6.6, "$2\\times32\\times48$", ha="center",
@@ -338,7 +336,7 @@ def stage_e(ax, xr):
             (pos[i][0] + nw, pos[i][1] + nh / 2), (pos[j][0], pos[j][1] + nh / 2),
             arrowstyle="-|>", mutation_scale=14, lw=2.7, color=style.BLUE,
             zorder=6, connectionstyle="arc3,rad=-0.16"))
-    ax.text(nx0 + 4.9, ny + 6.2, "$x_{ij}=1$", fontsize=FS_BODY,
+    ax.text(nx0 + 4.4, ny + 8.0, "$x_{ij}=1$", fontsize=FS_BODY,
             color=style.BLUE, ha="center")
     ax.text(nx0 + 6.6, ny - 7.2, "dashed: candidate arcs\nblue: selected",
             fontsize=FS_SMALL, color=SEC, ha="center", va="top",
@@ -360,7 +358,7 @@ def stage_e(ax, xr):
         y -= hh + 0.3
     ax.text(rx - 1.0, (ys[1] + top) / 2, "$\\pi$", ha="right", va="center",
             fontsize=FS_BODY, color=style.BLUE)
-    bracket(ax, rx + 2.8, bot, rx + 2.8, top, "$\\Lambda$", off=0.7,
+    bracket(ax, rx + 2.9, bot, rx + 2.9, top, "$\\Lambda$", off=-0.55,
             fs=FS_TITLE, color=style.ORANGE)
     cordy = []
     for f in (0.16, 0.66):
@@ -426,7 +424,16 @@ def make(model, out, dpi=600):
     show = [by_len[L][0] for L in sorted(by_len, reverse=True)][:3]
     ids = [i for c in show for i in c]
 
-    figw = 7.4                       # drawn at the size it is printed
+    figw = 7.4
+    s = style.scale_for(figw)
+    # The panel is printed at 0.95\textwidth, so a size given here is divided
+    # by s before a reader sees it. The constants above were chosen on the
+    # canvas rather than on the page, which put the smallest of them at 4.4pt
+    # in print; they are lifted so that the smallest prints at about 5.2pt.
+    global FS_LETTER, FS_TITLE, FS_SUB, FS_BODY, FS_SMALL, FS_TINY
+    k = 5.8 * s / FS_TINY
+    FS_LETTER, FS_TITLE, FS_SUB = FS_LETTER * k, FS_TITLE * k, FS_SUB * k
+    FS_BODY, FS_SMALL, FS_TINY = FS_BODY * k, FS_SMALL * k, FS_TINY * k
     fig = plt.figure(figsize=(figw, figw * CH / CW))
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, CW); ax.set_ylim(0, CH)
@@ -448,7 +455,7 @@ def make(model, out, dpi=600):
                                  arrowstyle="-|>", mutation_scale=20, lw=2.6,
                                  color="#6f6c66", zorder=8))
 
-    xd = stage_d(ax, S, ids, turn - 1.4)
+    xd = stage_d(ax, S, ids, turn - 5.2)
     flow(ax, xd - 0.5, xd - 4.2, Y2)
     xe = stage_e(ax, xd - 5.0)
     flow(ax, xe - 0.5, xe - 4.2, Y2)

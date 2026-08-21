@@ -24,7 +24,11 @@ def _ms(d, val, dec=3):
         return "--"
     if not np.isfinite(s):
         return f"{m:.{dec}f}"
-    return f"{m:.{dec}f} \\tiny{{({s:.{dec}f})}}"
+    # sn-jnl sizes are not monotone: \scriptsize is 9pt where \footnotesize,
+    # which the table body uses, is 7pt, and \tiny is 5pt with no design size
+    # in the maths fonts. The deviation is therefore set at the size of the
+    # table body, which is legible and needs no substitution.
+    return f"{m:.{dec}f} ({s:.{dec}f})"
 
 
 def table_dispersion():
@@ -128,7 +132,7 @@ def table_notch(path=common.RESULTS / "notch.csv"):
         return
     d = pd.read_csv(path)
     lines = [r"\begin{table}[htbp]", r"\centering\footnotesize",
-             r"\setlength{\tabcolsep}{4pt}",
+             r"\setlength{\tabcolsep}{3pt}",
              r"\caption{\textbf{Diagnosis of the binding-notch constraint.}"
              r" Corpora of about 1150 fragments at preservation state P4, three"
              r" seeds, mean (standard deviation). $\Delta$ is measured against"
@@ -384,12 +388,12 @@ def table_real(path=common.RESULTS / "real.csv"):
 # The headline tables, regenerated under the deposition model
 # ---------------------------------------------------------------------------
 
-MAIN_LABEL = {"top1": "Top ranked candidate", "mutual": "Mutual best",
-              "matching": "Maximum weight bipartite matching",
-              "morph": r"\quad $+$ morphometry and context",
+MAIN_LABEL = {"top1": "Top-ranked candidate", "mutual": "Mutual best",
+              "matching": "Bipartite matching",
+              "morph": r"\quad $+$ morphometry, context",
               "length": r"\quad $+$ slip length",
-              "full": "Pairwise constraints (all evidence)",
-              "latent": "Latent slip properties (this work)"}
+              "full": "Pairwise constraints",
+              "latent": "Latent properties (this work)"}
 MAIN_ORDER = ["top1", "mutual", "matching", "morph", "length", "full",
               "latent"]
 
@@ -412,7 +416,7 @@ def table_main_rev(path=common.RESULTS / "rerun_main.csv"):
              r" and each is evaluated at its own threshold tuned on"
              r" calibration corpora on the measure reported here.}",
              r"\label{tab:main}",
-             r"\begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.3cm}"
+             r"\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.6cm}"
              + "r" * len(states) + r"@{}}", r"\toprule",
              r"\multicolumn{" + str(len(states) + 1) +
              r"}{@{}l}{\emph{Slip partition index}} \\"]
@@ -436,7 +440,7 @@ def table_main_rev(path=common.RESULTS / "rerun_main.csv"):
     print("table_main_rev.tex")
 
 
-ABL_LABEL = {"latent": "Latent slip properties (this work)",
+ABL_LABEL = {"latent": "Latent properties (this work)",
              "no_strat": r"\quad $-$ excavation context",
              "no_length": r"\quad $-$ slip length",
              "no_hand": r"\quad $-$ scribal hand",
@@ -466,7 +470,7 @@ def table_ablation_rev(path=common.RESULTS / "rerun_ablation.csv"):
              r" of index at P4 but raises the rate of joins that fuse two"
              r" slips by 39\% and lowers exact recovery by 0.044.}",
              r"\label{tab:ablation}",
-             r"\begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.0cm}"
+             r"\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.4cm}"
              r"rrrrrr@{}}", r"\toprule",
              r"& \multicolumn{3}{c}{P3} & \multicolumn{3}{c}{P4} \\",
              r"\cmidrule(lr){2-4}\cmidrule(l){5-7}",
@@ -533,7 +537,7 @@ def table_exchange_rev(path=common.RESULTS / "rerun_main.csv"):
             eq = r"\emph{unreachable}"
         else:
             v = float(np.interp(la, ys, xs))
-            eq = f"{v:.3f} " + r"\tiny{(+" + f"{v - t:.3f}" + ")}"
+            eq = f"{v:.3f} (+{v - t:.3f})"
         lines.append(f"{s} & {t:.3f} & {la:.3f} & {eq}" + r" \\")
     lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
     (OUT / "table_exchange_rev.tex").write_text("\n".join(lines))

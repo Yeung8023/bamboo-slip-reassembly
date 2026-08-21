@@ -43,6 +43,8 @@ def fig_main(d, out):
               ("exact_slip", "Slips recovered exactly"),
               ("cross_slip_rate", "Cross-slip joins (error rate)")]
 
+    s = style.scale_for(13.6)
+
     fig, axes = plt.subplots(1, 4, figsize=(13.6, 3.3))
     a = _agg(d)
     for ax, (met, lab) in zip(axes, panels):
@@ -65,7 +67,7 @@ def fig_main(d, out):
     axes[0].set_ylim(0, 1)
     axes[-1].legend(loc="upper left", ncol=1)
     fig.suptitle("Global assembly versus ranking-based rejoining, "
-                 "across corpus preservation", y=1.04, fontsize=11,
+                 "across corpus preservation", y=1.04, fontsize=11 * s,
                  fontweight="bold")
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
@@ -80,6 +82,7 @@ def fig_substitution(d, out):
     """
     style.apply()
     methods = [m for m in style.METHOD_ORDER if m in set(d.method)]
+    s = style.scale_for(8.4)
     fig, axes = plt.subplots(1, 2, figsize=(8.4, 3.4))
     for ax, met, lab in [(axes[0], "ari", "Slip partition (ARI)"),
                          (axes[1], "exact_slip", "Slips recovered exactly")]:
@@ -97,9 +100,7 @@ def fig_substitution(d, out):
         ax.set_ylim(0, 1)
         style.finish(ax)
     style.panel_titles(axes)
-    axes[1].legend(loc="upper left")
-    fig.suptitle("Constraints substitute for matcher accuracy", y=1.03,
-                 fontsize=11, fontweight="bold")
+    style.legend_below(fig, axes[1], ncol=3, bottom=0.34)
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
 
@@ -126,6 +127,7 @@ def fig_ablation(d, out, state=None):
                                "cross_slip_rate"]].agg(["mean", "std"])
     order = [m for m in abl if m in a.index]
     heads = {"latent", "full"}
+    s = style.scale_for(13.6)
     fig, axes = plt.subplots(1, 4, figsize=(13.6, 3.4))
     for ax, met, lab in zip(axes, ["f1", "ari", "exact_slip", "cross_slip_rate"],
                             ["Join F1", "Slip partition (ARI)",
@@ -153,7 +155,7 @@ def fig_ablation(d, out, state=None):
         ax.set_yticklabels([])
     style.panel_titles(axes)
     fig.suptitle(f"Contribution of each constraint ({state})", y=1.04,
-                 fontsize=11, fontweight="bold")
+                 fontsize=11 * s, fontweight="bold")
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
     return True
@@ -164,6 +166,7 @@ def fig_scaling(d, out):
     sub = d[d.method.isin(["matching", "latent"])]
     if sub.n_frag.nunique() < 2:
         return False
+    s = style.scale_for(11.0)
     fig, axes = plt.subplots(1, 3, figsize=(11.0, 3.2))
     for k, mth in enumerate(["matching", "latent"]):
         g = sub[sub.method == mth].groupby("n_slips")
@@ -186,7 +189,7 @@ def fig_scaling(d, out):
     axes[2].set_yscale("log")
     style.panel_titles(axes)
     axes[0].legend(loc="lower left")
-    fig.suptitle("Scaling with corpus size", y=1.04, fontsize=11,
+    fig.suptitle("Scaling with corpus size", y=1.04, fontsize=11 * s,
                  fontweight="bold")
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
@@ -204,6 +207,7 @@ def fig_effort(d, out, state=None):
     if state is None:
         state = sorted(set(d.state))[-1]
     sub = d[d.state == state]
+    s = style.scale_for(6.4)
     fig, ax = plt.subplots(figsize=(6.4, 3.5))
     exp = sub[sub.method.str.startswith("expert_top")]
     xmax = 1.0
@@ -219,7 +223,7 @@ def fig_effort(d, out, state=None):
             # Labels sit to the left of their point so they stay clear of the
             # reference labels on the right-hand side.
             ax.annotate(f"top-{int(r.k)}", (r.x, r.y), textcoords="offset points",
-                        xytext=(-6, -11), ha="right", fontsize=7,
+                        xytext=(-6, -11), ha="right", fontsize=7 * s,
                         color=style.INK_SECONDARY)
     ax.set_xscale("log")
     # Room to the right of the last oracle point for the reference labels, so
@@ -233,13 +237,12 @@ def fig_effort(d, out, state=None):
         v = s2.ari.mean()
         ax.axhline(v, color=col, ls="--", lw=1.3)
         ax.annotate(style.METHOD_LABELS[mth] + ", no review",
-                    (xmax * 22, v), fontsize=7, color=col, ha="right",
-                    va="bottom")
-    ax.set_xlabel("Candidate pairs a specialist must inspect")
-    ax.set_ylabel("Slip partition (ARI)")
-    ax.set_title(f"Quality against human effort ({state})")
+                    (xmax * 22, v), fontsize=style.PRINTED["tick"] * s,
+                    color=col, ha="right", va="top")
+    ax.set_xlabel("candidate pairs a specialist must inspect")
+    ax.set_ylabel("slip partition index")
     style.finish(ax)
-    ax.legend(loc="upper left", fontsize=7)
+    ax.legend(loc="upper left")
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
     return True
@@ -254,6 +257,7 @@ def fig_frontier(d, out):
     """
     style.apply()
     states = sorted(set(d.state))
+    s = style.scale_for(4.1 * len(states))
     fig, axes = plt.subplots(1, len(states), figsize=(4.1 * len(states), 3.5),
                              squeeze=False)
     for ax, st in zip(axes[0], states):
@@ -270,13 +274,11 @@ def fig_frontier(d, out):
                     zorder=6 if mth == "latent" else 4,
                     label=style.METHOD_LABELS[mth])
         ax.set_xlabel("Cross-slip join rate")
-        ax.set_ylabel("Slip partition (ARI)")
-        ax.set_title(f"{st}  {style.STATE_LABELS[st].split(' ',1)[1]}")
+        if ax is axes[0][0]:
+            ax.set_ylabel("slip partition index")
         style.finish(ax, grid_axis="both")
     style.panel_titles(axes[0])
-    axes[0][0].legend(loc="lower right", fontsize=7)
-    fig.suptitle("Latent per-slip variables move the whole operating frontier",
-                 y=1.04, fontsize=11, fontweight="bold")
+    style.legend_below(fig, axes[0][0], ncol=2, bottom=0.40)
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
     return True
@@ -369,6 +371,7 @@ def fig_sobol(path, out, metric="ari"):
             "notch_sigma_mm": "notch measurement noise",
             "notch_tol_mm": "notch tolerance (method)", "width_tol_mm": "width tolerance (method)"}
     cols = [style.ORANGE if p.endswith("_tol_mm") else style.BLUE for p in d.param]
+    s = style.scale_for(6.0)
     fig, ax = plt.subplots(figsize=(6.0, 3.6))
     ax.barh(range(len(d)), d.ST, xerr=d.ST_conf, color=cols, height=0.66,
             error_kw=dict(lw=0.8))
