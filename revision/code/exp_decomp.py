@@ -42,8 +42,10 @@ from common import assemble, synth
 STATE = "P4"
 
 
-def _row(tag, solver, budget, n_slips, seed, n, prob, r, wall, e, ref=None):
+def _row(tag, solver, budget, n_slips, seed, n, prob, r, wall, e, ref=None,
+         agree=np.nan, joins_identical=np.nan):
     return dict(tag=tag, solver=solver, budget_s=budget, n_slips=n_slips,
+                agree=agree, joins_identical=joins_identical,
                 seed=seed, n_frag=n, n_arcs=len(prob["arcs"]), solve_s=wall,
                 status=r["status"], objective=r.get("objective", np.nan),
                 bound=r.get("bound", np.nan), gap=r.get("gap", np.nan),
@@ -83,11 +85,24 @@ def measure(model, n_slips, seed, kw, cal, lr, radius, short, long_, workers,
 
     rd = assemble.solve_decomposed(prob, time_limit=long_, workers=workers)
     ed = score(rd)
-    rows.append(_row("scale", "decomposed", long_, n_slips, seed, n, prob, rd,
-                     rd["wall"], ed, ref=rl.get("objective")))
 
-    same = (rl["status"] == "OPTIMAL" and rd["status"] == "OPTIMAL"
-            and abs(rl["objective"] - rd["objective"]) < 1e-3)
+    # Equality of the objective is not equality of the reconstruction, and it
+    # is the reconstruction the manuscript claims is identical, so both are
+    # checked on every instance where optimality is proven at both ends.
+    same_obj = (rl["status"] == "OPTIMAL" and rd["status"] == "OPTIMAL"
+                and abs(rl["objective"] - rd["objective"]) < 1e-3)
+    same_joins = (set(map(tuple, rl["joins"])) == set(map(tuple, rd["joins"]))
+                  if same_obj else False)
+    same = same_obj and same_joins
+    agree = float(same) if (rl["status"] == "OPTIMAL"
+                            and rd["status"] == "OPTIMAL") else np.nan
+    if same_obj and not same_joins:
+        print("    note: equal objective, different join set (ties)",
+              flush=True)
+    rows.append(_row("scale", "decomposed", long_, n_slips, seed, n, prob, rd,
+                     rd["wall"], ed, ref=rl.get("objective"), agree=agree,
+                     joins_identical=float(same_joins) if same_obj else np.nan))
+
     print(f"  {n} frags seed {seed}: "
           f"{short:.0f}s {rs['status']} gap {rs.get('gap', np.nan):.4f} "
           f"ARI {es['ari']:.3f} | "

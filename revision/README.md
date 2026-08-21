@@ -79,16 +79,27 @@ would shift one method along the threshold grid relative to another, and the
 comparison would measure the grid rather than the model. Every experiment
 reports whether a tuned threshold landed on a grid endpoint.
 
-## Remaining steps after the experiments finish
+## Headline results are rerun under the deposition model
 
-1. Fill the five placeholders (all R2-3, from `decomposition*.csv`).
-2. **Tighten.** The response letter and the new manuscript prose are to be
-   short and forceful, not exhaustive. Cut every sentence that restates a
-   number already in a table, every hedge that does not change a claim, and
-   every paragraph that explains something the reviewer already knows. Target:
-   response letter under 6 pages, and the new Results prose roughly halved.
-3. Regenerate figures and tables, compile all three PDFs.
-4. **Independent review pass.** Spawn several review agents to check, against
-   the CSVs, that every number quoted in the manuscript and the response letter
-   is correct and that no claim exceeds what the data supports.
-5. Update HANDOFF.md.
+Table 1, Table 2, the exchange rate, the case study and the scaling curve in the
+revised manuscript all come from `results/rerun_*.csv`, produced by
+`code/exp_main.py` with fragments deposited, dispersed and recorded as
+`DepositionSpec(model="spatial")` describes, and with the excavation record read
+as graded evidence. The submitted versions of those numbers rested on one unit
+drawn per slip, never missing and never wrong, which the revision itself shows is
+not a record any excavation delivers.
+
+Four experiments predate that rerun and select each method's threshold on join
+F1 rather than on the partition index: the comparison with global puzzle solving,
+the real material corpora, the misspecification sweep and the test under uneven
+preservation. They are internally consistent, every method within them is treated
+alike, and the manuscript says so where they are reported.
+
+## Reproducing the headline
+
+```bash
+$PY -u revision/code/exp_main.py --what main     --slips 400 --seeds 5
+$PY -u revision/code/exp_main.py --what ablation --slips 400 --seeds 5 --states P4
+$PY -u revision/code/exp_main.py --what main --slips 150,400,900,1800 --seeds 3 \
+       --states P4 --out revision/results/rerun_scaling.csv
+```

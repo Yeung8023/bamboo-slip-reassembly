@@ -49,7 +49,7 @@ def table_dispersion():
     lines = [r"\begin{table}[htbp]", r"\centering\footnotesize",
              r"\setlength{\tabcolsep}{4pt}",
              r"\caption{\textbf{Excavation context under the deposition model.}"
-             r" Corpora of about 1200 fragments at preservation state P4, three"
+             r" Corpora of about 1150 fragments at preservation state P4, three"
              r" seeds, mean (standard deviation). Context coherence is the"
              r" fraction of true joins whose two fragments carry the same"
              r" recorded unit. Arc recall is the fraction of true joins"
@@ -93,7 +93,7 @@ def table_record():
         return
     lines = [r"\begin{table}[htbp]", r"\centering\footnotesize",
              r"\caption{\textbf{Reassembly under an imperfect excavation"
-             r" record.} Corpora of about 1200 fragments at preservation state"
+             r" record.} Corpora of about 1150 fragments at preservation state"
              r" P4 with dispersion $\sigma = 30$ mm and a 250 mm grid, three"
              r" seeds. Missing denotes the fraction of fragments recovered with"
              r" no context record at all; misfiled denotes the fraction of the"
@@ -130,16 +130,17 @@ def table_notch(path=common.RESULTS / "notch.csv"):
     lines = [r"\begin{table}[htbp]", r"\centering\footnotesize",
              r"\setlength{\tabcolsep}{4pt}",
              r"\caption{\textbf{Diagnosis of the binding-notch constraint.}"
-             r" Corpora of about 1200 fragments at preservation state P4, three"
+             r" Corpora of about 1150 fragments at preservation state P4, three"
              r" seeds, mean (standard deviation). $\Delta$ is measured against"
              r" the same model with the notch constraint removed, within each"
              r" block. In the upper block slip lengths are drawn independently,"
              r" as in the submitted manuscript; in the lower block a roll"
              r" imposes one standard length, while the corpus still spans 231"
              r" to 278 mm. The change in partition index is not monotone in the"
-             r" tolerance and is within the spread over seeds, whereas every"
-             r" treatment reduces the rate of joins that fuse two slips and"
-             r" raises the fraction of slips recovered intact.}",
+             r" tolerance, although each individual change is consistent"
+             r" across seeds, whereas every treatment reduces the rate of"
+             r" joins that fuse two slips and raises the fraction of slips"
+             r" recovered intact.}",
              r"\label{tab:notch}",
              r"\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.2cm}"
              r"lrrrr@{}}", r"\toprule",
@@ -196,7 +197,7 @@ def table_roll(path=common.RESULTS / "notch_roll.csv",
     lines = [r"\begin{table}[htbp]", r"\centering\footnotesize",
              r"\setlength{\tabcolsep}{4pt}",
              r"\caption{\textbf{Slip length estimated jointly over a roll,"
-             r" compared at matched grouping quality.} Corpora of about 1200"
+             r" compared at matched grouping quality.} Corpora of about 1150"
              r" fragments at preservation state P4, three seeds, join threshold"
              r" swept over the whole grid. For each seed, every variant is read"
              r" at the threshold bringing it closest to the best slip partition"
@@ -261,10 +262,14 @@ def table_baselines(path=common.RESULTS / "baselines.csv"):
              r"\setlength{\tabcolsep}{4pt}",
              r"\caption{\textbf{Comparison with global reassembly methods that"
              r" carry no model of the object.} Slip partition index, corpora of"
-             r" about 1200 fragments, three seeds, mean (standard deviation)."
-             r" Every method receives the same candidate arcs and the same"
+             r" about 1150 fragments, three seeds, mean (standard deviation)."
+             r" Every method receives the same"
              r" calibrated weights, and each is given its own threshold tuned"
-             r" on calibration corpora.}",
+             r" on calibration corpora. The four global methods receive the"
+             r" ungated candidate set, since none can represent the excavation"
+             r" context or the morphometry that prunes the constrained model's"
+             r" arcs; gating their candidates on evidence they cannot use"
+             r" would credit them with it.}",
              r"\label{tab:baselines}",
              r"\begin{tabular}{l" + "r" * len(states) + "}", r"\toprule",
              "Method & " + " & ".join(states) + r" \\", r"\midrule"]
@@ -274,15 +279,31 @@ def table_baselines(path=common.RESULTS / "baselines.csv"):
             continue
         cells = [_ms(sub[sub.state == s], "ari") for s in states]
         lines.append(f"{lab} & " + " & ".join(cells) + r" \\")
+    lines.append(r"\midrule")
+    lines.append(r"\multicolumn{" + str(len(states) + 1) +
+                 r"}{@{}l}{\emph{Multi fragment slips recovered exactly}} \\")
+    for m, lab in order:
+        sub = d[d.method == m]
+        if not len(sub):
+            continue
+        cells = [_ms(sub[sub.state == s], "exact_slip") for s in states]
+        lines.append(f"{lab} & " + " & ".join(cells) + r" \\")
     lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
     (OUT / "table_baselines.tex").write_text("\n".join(lines))
     print("table_baselines.tex")
 
 
-def table_decomposition(path=common.RESULTS / "decomposition.csv"):
+def table_decomposition(path=common.RESULTS / "decomposition.csv",
+                        small=common.RESULTS / "decomposition_small.csv"):
     if not Path(path).exists():
         return
     d = pd.read_csv(path)
+    if Path(small).exists():
+        # the rerun of the two smaller sizes also compared the selected join
+        # sets, not only the objectives, and supersedes them here
+        sm = pd.read_csv(small)
+        d = pd.concat([d[~d.n_slips.isin(sm.n_slips.unique())], sm],
+                      ignore_index=True)
     lines = [r"\begin{table}[htbp]", r"\centering\footnotesize",
              r"\setlength{\tabcolsep}{4pt}",
              r"\caption{\textbf{Cost and optimality of the two ways of solving"
@@ -473,6 +494,86 @@ def table_ablation_rev(path=common.RESULTS / "rerun_ablation.csv"):
     print("table_ablation_rev.tex")
 
 
+def table_exchange_rev(path=common.RESULTS / "rerun_main.csv"):
+    """What the constraint set is worth in units of matcher accuracy.
+
+    Recomputed from the reran corpora, so that this table and the main table
+    describe the same experiment.
+    """
+    if not Path(path).exists():
+        return
+    d = pd.read_csv(path)
+    g = d.groupby(["state", "method"]).agg(top1=("top1", "mean"),
+                                           ari=("ari", "mean")).reset_index()
+    bip = g[g.method == "matching"].set_index("state")
+    lat = g[g.method == "latent"].set_index("state")
+    states = ["P5", "P4", "P3", "P2", "P1"]
+    x = np.array([bip.loc[s, "top1"] for s in states])
+    y = np.array([bip.loc[s, "ari"] for s in states])
+    o = np.argsort(x)
+    xs, ys = x[o], y[o]
+
+    lines = [r"\begin{table}[htbp]", r"\centering\small",
+             r"\caption{\textbf{Constraint set expressed as an equivalent gain"
+             r" in pairwise matching accuracy.} For each preservation state:"
+             r" the measured Top-1 accuracy of the matcher; the slip partition"
+             r" index attained by the proposed model at that accuracy; and the"
+             r" Top-1 accuracy that maximum weight bipartite matching would"
+             r" require to attain the same partition index, obtained by"
+             r" interpolating its performance along the preservation ladder."
+             r" \emph{Unreachable} denotes states at which bipartite matching"
+             r" does not attain that partition index at any accuracy observed"
+             r" on the ladder, including that of the best preserved corpus.}",
+             r"\label{tab:exchange}", r"\begin{tabular}{lrrr}", r"\toprule",
+             r"State & Matcher Top-1 & Proposed index & Equivalent Top-1 \\",
+             r"\midrule"]
+    for s in states:
+        t, la = bip.loc[s, "top1"], lat.loc[s, "ari"]
+        if la > ys.max():
+            eq = r"\emph{unreachable}"
+        else:
+            v = float(np.interp(la, ys, xs))
+            eq = f"{v:.3f} " + r"\tiny{(+" + f"{v - t:.3f}" + ")}"
+        lines.append(f"{s} & {t:.3f} & {la:.3f} & {eq}" + r" \\")
+    lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
+    (OUT / "table_exchange_rev.tex").write_text("\n".join(lines))
+    print("table_exchange_rev.tex")
+
+
+def table_scaling_rev(path=common.RESULTS / "rerun_scaling.csv"):
+    """Behaviour with corpus size, under the deposition model."""
+    if not Path(path).exists():
+        return
+    d = pd.read_csv(path)
+    d["grp"] = pd.cut(d.n_frag, [0, 600, 1500, 3000, 6000],
+                      labels=["425", "1151", "2540", "5060"])
+    lines = [r"\begin{table}[htbp]", r"\centering\footnotesize",
+             r"\setlength{\tabcolsep}{4pt}",
+             r"\caption{\textbf{Behaviour with corpus size.} Preservation"
+             r" state P4 under the deposition model, three seeds per size,"
+             r" mean over seeds. Each method is evaluated at its own threshold,"
+             r" tuned on calibration corpora. The advantage of the constrained"
+             r" model over bipartite matching grows with the corpus on every"
+             r" measure.}",
+             r"\label{stab:scaling}",
+             r"\begin{tabular}{@{}lrrrr@{}}", r"\toprule",
+             r"Fragments & 425 & 1151 & 2540 & 5060 \\", r"\midrule"]
+    for val, head in (("ari", "Slip partition index"),
+                      ("exact_slip", "Slips recovered exactly"),
+                      ("cross_slip_rate", "Joins fusing two slips")):
+        lines.append(r"\multicolumn{5}{@{}l}{\emph{" + head + r"}} \\")
+        for m, lab in (("matching", r"\quad bipartite matching"),
+                       ("full", r"\quad pairwise constraints"),
+                       ("latent", r"\quad latent properties")):
+            k = d[d.method == m]
+            cells = [f"{k[k.grp == g][val].mean():.3f}"
+                     for g in ["425", "1151", "2540", "5060"]]
+            lines.append(f"{lab} & " + " & ".join(cells) + r" \\")
+    lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
+    (OUT / "table_scaling_rev.tex").write_text("\n".join(lines))
+    print("table_scaling_rev.tex")
+
+
 if __name__ == "__main__":
     table_dispersion()
     table_record()
@@ -483,3 +584,5 @@ if __name__ == "__main__":
     table_real()
     table_main_rev()
     table_ablation_rev()
+    table_exchange_rev()
+    table_scaling_rev()

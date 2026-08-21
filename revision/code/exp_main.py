@@ -143,7 +143,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--what", default="main", help="main | ablation")
     ap.add_argument("--states", default="P1,P2,P3,P4,P5")
-    ap.add_argument("--slips", type=int, default=400)
+    ap.add_argument("--slips", default="400",
+                    help="corpus sizes in slips, comma separated")
     ap.add_argument("--cal-slips", type=int, default=120)
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--time-limit", type=float, default=180.0)
@@ -156,10 +157,12 @@ def main():
     methods = MAIN if a.what == "main" else ABLATION
     out = a.out or str(common.RESULTS / f"rerun_{a.what}.csv")
     rows = []
-    for state in a.states.split(","):
-        rows += run(model, state, methods, list(range(a.seeds)), a.slips,
-                    a.cal_slips, a.time_limit, a.workers, dep, out, a.what)
-        pd.DataFrame(rows).to_csv(out, index=False)
+    for n_slips in [int(x) for x in str(a.slips).split(",")]:
+        for state in a.states.split(","):
+            rows += run(model, state, methods, list(range(a.seeds)), n_slips,
+                        a.cal_slips, a.time_limit, a.workers, dep, out,
+                        a.what)
+            pd.DataFrame(rows).to_csv(out, index=False)
     print(f"\n{len(rows)} rows -> {out}")
 
 

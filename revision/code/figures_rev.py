@@ -386,6 +386,7 @@ def _main():
     fig_real_examples()
     fig_main_rev()
     fig_ablation_rev()
+    fig_scaling_rev()
 
 
 def fig_real_examples(screened=common.ROOT / "revision" / "data_real" /
@@ -519,6 +520,41 @@ def fig_ablation_rev(path=RESULTS / "rerun_ablation.csv"):
     fig.savefig(FIGS / "figR9_ablation.png")
     plt.close(fig)
     print("figR9_ablation.png")
+
+
+def fig_scaling_rev(path=RESULTS / "rerun_scaling.csv"):
+    """Behaviour with corpus size, under the deposition model."""
+    if not Path(path).exists():
+        return
+    d = pd.read_csv(path)
+    order = [("matching", style.RAMP[0], "s", "bipartite matching"),
+             ("full", style.RAMP[3], "X", "pairwise constraints"),
+             ("latent", style.ACCENT, "o", "latent properties (this work)")]
+    fig, axes = plt.subplots(1, 3, figsize=(11.0, 3.4))
+    for ax, val, ylab in ((axes[0], "ari", "slip partition index"),
+                          (axes[1], "exact_slip",
+                           "multi fragment slips recovered exactly"),
+                          (axes[2], "cross_slip_rate",
+                           "joins fusing two slips")):
+        for m, col, mk, lab in order:
+            k = d[d.method == m]
+            k = k.assign(grp=pd.cut(k.n_frag, [0, 600, 1500, 3000, 6000]))
+            g = k.groupby("grp", observed=True).agg(
+                x=("n_frag", "mean"), mu=(val, "mean"), sd=(val, "std"))
+            ax.errorbar(g["x"], g["mu"], yerr=g["sd"], marker=mk, color=col,
+                        label=lab, capsize=2, ms=4)
+        ax.set_xscale("log")
+        ax.set_xlabel("fragments in the corpus")
+        ax.set_ylabel(ylab)
+        style.finish(ax)
+    axes[0].legend(fontsize=7, loc="center left")
+    style.panel_titles(list(axes), ["grouping into slips",
+                                    "whole slips recovered",
+                                    "damaging errors"])
+    fig.tight_layout()
+    fig.savefig(FIGS / "figR10_scaling.png")
+    plt.close(fig)
+    print("figR10_scaling.png")
 
 
 if __name__ == "__main__":
