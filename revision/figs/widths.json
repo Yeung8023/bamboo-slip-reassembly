@@ -1,0 +1,23 @@
+{
+  "fig0_overview": 9.585,
+  "fig10_calibration": 10.445,
+  "fig11_convergence": 12.2533,
+  "fig12_pr_spread": 13.995,
+  "fig13_qualitative": 8.105,
+  "fig1_benchmark": 8.65,
+  "fig6_effort": 5.555,
+  "fig9_sobol": 6.4717,
+  "figR10_scaling": 9.5017,
+  "figR11_case": 7.7517,
+  "figR12_substitution": 6.8667,
+  "figR13_frontier": 7.6883,
+  "figR1_dispersion": 9.38,
+  "figR2_arc_recall": 7.4733,
+  "figR3_notch": 9.7767,
+  "figR4_baselines": 9.295,
+  "figR5_decomposition": 9.5467,
+  "figR6_realism": 9.3867,
+  "figR7_real_examples": 6.6633,
+  "figR8_main": 11.8967,
+  "figR9_ablation": 8.65
+}

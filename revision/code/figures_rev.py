@@ -45,7 +45,7 @@ def _legend_below(fig, ax, ncol=4, bottom=0.20):
 
 
 
-def _new(ncols, w, h, **kw):
+def _new(ncols, w, h, key=None, **kw):
     """A figure whose typography is authored for the width it prints at.
 
     The manuscript places figures at 0.95\\textwidth. A canvas wider than that
@@ -54,7 +54,7 @@ def _new(ncols, w, h, **kw):
     defaults. Returns the scale factor as well, for sizes given directly to a
     plotting call.
     """
-    s = style.scale_for(w)
+    s = style.scale_for(w, key=key)
     fig, axes = plt.subplots(1, ncols, figsize=(w, h), **kw)
     return fig, axes, s
 
@@ -82,7 +82,7 @@ def fig_dispersion():
     ref = d[d.tag == "uniform"]
     refs = {m: ref[ref.method == m] for m in ("context_none", "matching")}
 
-    fig, axes, s = _new(3, 11.0, 3.9,
+    fig, axes, s = _new(3, 11.0, 3.9, key="figR1_dispersion",
                         gridspec_kw=dict(wspace=0.42))
 
     for ax, (tag, xcol, xlabel) in zip(
@@ -140,7 +140,7 @@ def fig_arc_recall():
     """Why the gate fails: it deletes the joins it is meant to protect."""
     d = common.load_dispersion()
     sub = d[d.tag == "sigma"]
-    fig, axes, s = _new(2, 7.6, 3.2)
+    fig, axes, s = _new(2, 7.6, 3.2, key="figR2_arc_recall")
     for m in ("context_hard", "context_soft", "context_none"):
         k = sub[sub.method == m]
         if not len(k):
@@ -177,7 +177,7 @@ def fig_notch(path=RESULTS / "notch.csv",
     have_f = Path(frontier).exists()
     if not (have_a or have_f):
         return
-    fig, axes, s = _new(3, 11.0, 3.9,
+    fig, axes, s = _new(3, 11.0, 3.9, key="figR3_notch",
                         gridspec_kw=dict(wspace=0.42))
 
     # a) is it the tolerance?
@@ -253,7 +253,7 @@ def fig_baselines(path=RESULTS / "baselines.csv"):
     cols = [style.GREY_1, style.GREY_2, style.RAMP[0], style.RAMP[1],
             style.RAMP[2], style.RAMP[3], style.ACCENT]
     states = sorted(d.state.unique())
-    fig, axes, s = _new(2, 9.4, 3.4)
+    fig, axes, s = _new(2, 9.4, 3.4, key="figR4_baselines")
     for ax, val, ylab in ((axes[0], "ari", "slip partition index"),
                           (axes[1], "cross_slip_rate",
                            "joins fusing two slips")):
@@ -281,7 +281,7 @@ def fig_decomposition(path=RESULTS / "decomposition.csv"):
     if not Path(path).exists():
         return
     d = pd.read_csv(path)
-    fig, axes, s = _new(3, 11.0, 3.9,
+    fig, axes, s = _new(3, 11.0, 3.9, key="figR5_decomposition",
                         gridspec_kw=dict(wspace=0.42))
     for solver, col, mk, lab in (("monolithic", style.GREY_2, "s",
                                   "one model for the corpus"),
@@ -331,7 +331,7 @@ def fig_realism(path=RESULTS / "realism.csv", real=RESULTS / "real.csv",
         # whatever the first pass wrote
         d = pd.concat([d[d.part != "uneven"], pd.read_csv(uneven)],
                       ignore_index=True)
-    fig, axes, s = _new(3, 11.0, 3.9,
+    fig, axes, s = _new(3, 11.0, 3.9, key="figR6_realism",
                         gridspec_kw=dict(wspace=0.42))
 
     ax = axes[0]
@@ -442,7 +442,7 @@ def fig_real_examples(screened=common.ROOT / "revision" / "data_real" /
         return
 
     cmap = matplotlib.colormaps["gray"].with_extremes(bad="white")
-    fig, axes, s = _new(len(slips), 1.35 * len(slips), 6.2)
+    fig, axes, s = _new(len(slips), 1.35 * len(slips), 6.2, key="figR7_real_examples")
     axes = np.atleast_1d(axes)
     wmax = max(p["img"].shape[1] for sid in slips for p in
                (g for _, g in by_slip[sid]))
@@ -484,7 +484,7 @@ def fig_main_rev(path=RESULTS / "rerun_main.csv"):
              ("length", style.RAMP[2], "P", "$+$ slip length"),
              ("full", style.RAMP[3], "X", "pairwise constraints"),
              ("latent", style.ACCENT, "o", "latent properties (this work)")]
-    fig, axes, s = _new(3, 11.0, 3.9,
+    fig, axes, s = _new(3, 11.0, 3.9, key="figR8_main",
                         gridspec_kw=dict(wspace=0.42))
     for ax, val, ylab in ((axes[0], "ari", "slip partition index"),
                           (axes[1], "exact_slip",
@@ -516,7 +516,7 @@ def fig_ablation_rev(path=RESULTS / "rerun_ablation.csv"):
     lat = [("no_strat", "excavation context"), ("no_length", "slip length"),
            ("no_hand", "scribal hand"), ("no_width", "slip width"),
            ("no_notch", "binding notches")]
-    fig, axes, s = _new(2, 8.6, 3.6)
+    fig, axes, s = _new(2, 8.6, 3.6, key="figR9_ablation")
     for ax, st in zip(axes, ["P3", "P4"]):
         k = d[d.state == st]
         base = k[k.method == "latent"]["ari"].mean()
@@ -550,7 +550,7 @@ def fig_scaling_rev(path=RESULTS / "rerun_scaling.csv"):
     order = [("matching", style.RAMP[0], "s", "bipartite matching"),
              ("full", style.RAMP[3], "X", "pairwise constraints"),
              ("latent", style.ACCENT, "o", "latent properties (this work)")]
-    fig, axes, s = _new(3, 11.0, 3.9,
+    fig, axes, s = _new(3, 11.0, 3.9, key="figR10_scaling",
                         gridspec_kw=dict(wspace=0.42))
     for ax, val, ylab in ((axes[0], "ari", "slip partition index"),
                           (axes[1], "exact_slip",
@@ -599,7 +599,7 @@ def fig_substitution_rev(path=RESULTS / "rerun_main.csv"):
              ("length", style.RAMP[2], "P", "$+$ slip length"),
              ("full", style.RAMP[3], "X", "pairwise constraints"),
              ("latent", style.ACCENT, "o", "latent properties (this work)")]
-    fig, axes, s = _new(2, 8.0, 3.6, gridspec_kw=dict(wspace=0.34))
+    fig, axes, s = _new(2, 8.0, 3.6, key="figR12_substitution", gridspec_kw=dict(wspace=0.34))
     for ax, val, ylab in ((axes[0], "ari", "slip partition index"),
                           (axes[1], "exact_slip", "slips recovered exactly")):
         for m, col, mk, lab in order:
@@ -630,7 +630,7 @@ def fig_frontier_rev(path=RESULTS / "frontier_rev.csv"):
     states = [x for x in ("P2", "P3", "P4", "P5") if x in set(d.state)]
     order = [("full", style.RAMP[3], "X", "pairwise constraints"),
              ("latent", style.ACCENT, "o", "latent properties (this work)")]
-    fig, axes, s = _new(len(states), 3.0 * len(states), 3.4,
+    fig, axes, s = _new(len(states), 3.0 * len(states), 3.4, key="figR13_frontier",
                         gridspec_kw=dict(wspace=0.40))
     axes = np.atleast_1d(axes)
     for ax, st in zip(axes, states):

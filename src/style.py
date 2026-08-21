@@ -9,6 +9,9 @@ so identity never rests on hue alone.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
@@ -139,13 +142,28 @@ PRINTED = {
 }
 
 
-def scale_for(fig_width_in: float, placed_in: float = PLACED_IN) -> float:
+# Saving with bbox_inches="tight" crops the canvas, so what is placed on the
+# page is the cropped content and not the figure width. How much is cropped
+# depends on the panel count and the label lengths, which is why a scale
+# computed from the figure width alone leaves the type of one figure larger
+# than another. `calibrate_figures.py` measures what each figure actually
+# occupies and records it here; scale_for uses the measurement when it has one.
+_CALIB_PATH = Path(__file__).resolve().parent.parent / "revision" / "figs" / "widths.json"
+try:
+    _CALIB = json.loads(_CALIB_PATH.read_text())
+except Exception:
+    _CALIB = {}
+
+
+def scale_for(fig_width_in: float, key: str | None = None,
+              placed_in: float = PLACED_IN) -> float:
     """Set typography so a figure drawn this wide prints at PRINTED sizes.
 
     Returns the scale factor, so that sizes passed directly to a plotting call
     (marker size, cap size, an explicit fontsize) can be scaled with it.
     """
-    s = float(fig_width_in) / float(placed_in)
+    measured = _CALIB.get(key) if key else None
+    s = float(measured or fig_width_in) / float(placed_in)
     mpl.rcParams.update({
         "font.size": PRINTED["font"] * s,
         "axes.titlesize": PRINTED["title"] * s,

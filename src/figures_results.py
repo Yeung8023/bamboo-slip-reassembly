@@ -55,7 +55,7 @@ def fig_calibration(model, out, state="P4", n_slips=400, seed=0, n_neg=200000):
                   for a, b in zip(ii[keep], jj[keep])])
     neg = S[ii[keep][m], jj[keep][m]]
 
-    s = style.scale_for(12.4)
+    s = style.scale_for(12.4, key=Path(out).stem)
 
     fig, axes = plt.subplots(1, 3, figsize=(12.4, 3.4))
 
@@ -152,7 +152,7 @@ def fig_convergence(model, out, state="P4", sizes=(150, 400, 900),
         print(f"  n={len(meta)} arcs={len(prob['arcs'])} "
               f"{r['status']} {r['wall']:.1f}s")
 
-    s = style.scale_for(12.6)
+    s = style.scale_for(12.6, key=Path(out).stem)
 
     fig, axes = plt.subplots(1, 3, figsize=(12.6, 3.5))
 
@@ -223,7 +223,7 @@ def fig_pr_and_spread(frontier, runs, out):
     r = pd.read_csv(runs)
     states = sorted(set(d.state))
 
-    s = style.scale_for(3.5 * (len(states) + 1))
+    s = style.scale_for(3.5 * (len(states) + 1), key=Path(out).stem)
     fig, axes = plt.subplots(1, len(states) + 1,
                              figsize=(3.5 * (len(states) + 1), 3.4))
     for ax, st in zip(axes, states):
@@ -336,7 +336,7 @@ def fig_qualitative(model, out, state="P4", n_slips=60, seed=23):
         print("no chains to show")
         return
 
-    s = style.scale_for(1.5 * len(picks) + 1.2)
+    s = style.scale_for(1.5 * len(picks) + 1.2, key=Path(out).stem)
 
     fig, ax = plt.subplots(figsize=(1.5 * len(picks) + 1.2, 5.0))
     ax.set_xlim(-0.34, len(picks) + 0.10); ax.set_ylim(-0.06, 1.06)

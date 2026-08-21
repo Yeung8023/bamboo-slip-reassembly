@@ -425,7 +425,7 @@ def make(model, out, dpi=600):
     ids = [i for c in show for i in c]
 
     figw = 7.4
-    s = style.scale_for(figw)
+    s = style.scale_for(figw, key=Path(out).stem)
     # The panel is printed at 0.95\textwidth, so a size given here is divided
     # by s before a reader sees it. The constants above were chosen on the
     # canvas rather than on the page, which put the smallest of them at 4.4pt

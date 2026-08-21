@@ -34,7 +34,7 @@ def _descs(inst):
 def fig_benchmark(model, out, seed=11):
     """What the benchmark looks like, and why ranking alone cannot finish."""
     style.apply()
-    s = style.scale_for(9.6)
+    s = style.scale_for(9.6, key=Path(out).stem)
     fig = plt.figure(figsize=(9.6, 7.4))
     gs = fig.add_gridspec(2, 2, width_ratios=[1.25, 1.0],
                           height_ratios=[1.0, 1.0], wspace=0.34, hspace=0.70,
@@ -193,7 +193,7 @@ def fig_case(model, out, n_slips=1155, seed=4242, state="P4"):
     mo = baselines.matching_only(meta, W, cfg)
     e_match = metrics.evaluate(n, mo, inst["joins"], slip_of)
 
-    s = style.scale_for(12.4)
+    s = style.scale_for(12.4, key=Path(out).stem)
 
     fig, axes = plt.subplots(1, 3, figsize=(12.4, 3.5),
                              gridspec_kw=dict(width_ratios=[1.15, 1, 1.25]))

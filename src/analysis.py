@@ -43,7 +43,7 @@ def fig_main(d, out):
               ("exact_slip", "Slips recovered exactly"),
               ("cross_slip_rate", "Cross-slip joins (error rate)")]
 
-    s = style.scale_for(13.6)
+    s = style.scale_for(13.6, key=Path(out).stem)
 
     fig, axes = plt.subplots(1, 4, figsize=(13.6, 3.3))
     a = _agg(d)
@@ -82,7 +82,7 @@ def fig_substitution(d, out):
     """
     style.apply()
     methods = [m for m in style.METHOD_ORDER if m in set(d.method)]
-    s = style.scale_for(8.4)
+    s = style.scale_for(8.4, key=Path(out).stem)
     fig, axes = plt.subplots(1, 2, figsize=(8.4, 3.4))
     for ax, met, lab in [(axes[0], "ari", "Slip partition (ARI)"),
                          (axes[1], "exact_slip", "Slips recovered exactly")]:
@@ -127,7 +127,7 @@ def fig_ablation(d, out, state=None):
                                "cross_slip_rate"]].agg(["mean", "std"])
     order = [m for m in abl if m in a.index]
     heads = {"latent", "full"}
-    s = style.scale_for(13.6)
+    s = style.scale_for(13.6, key=Path(out).stem)
     fig, axes = plt.subplots(1, 4, figsize=(13.6, 3.4))
     for ax, met, lab in zip(axes, ["f1", "ari", "exact_slip", "cross_slip_rate"],
                             ["Join F1", "Slip partition (ARI)",
@@ -166,7 +166,7 @@ def fig_scaling(d, out):
     sub = d[d.method.isin(["matching", "latent"])]
     if sub.n_frag.nunique() < 2:
         return False
-    s = style.scale_for(11.0)
+    s = style.scale_for(11.0, key=Path(out).stem)
     fig, axes = plt.subplots(1, 3, figsize=(11.0, 3.2))
     for k, mth in enumerate(["matching", "latent"]):
         g = sub[sub.method == mth].groupby("n_slips")
@@ -207,7 +207,7 @@ def fig_effort(d, out, state=None):
     if state is None:
         state = sorted(set(d.state))[-1]
     sub = d[d.state == state]
-    s = style.scale_for(6.4)
+    s = style.scale_for(6.4, key=Path(out).stem)
     fig, ax = plt.subplots(figsize=(6.4, 3.5))
     exp = sub[sub.method.str.startswith("expert_top")]
     xmax = 1.0
@@ -257,7 +257,7 @@ def fig_frontier(d, out):
     """
     style.apply()
     states = sorted(set(d.state))
-    s = style.scale_for(4.1 * len(states))
+    s = style.scale_for(4.1 * len(states, key=Path(out).stem))
     fig, axes = plt.subplots(1, len(states), figsize=(4.1 * len(states), 3.5),
                              squeeze=False)
     for ax, st in zip(axes[0], states):
@@ -371,7 +371,7 @@ def fig_sobol(path, out, metric="ari"):
             "notch_sigma_mm": "notch measurement noise",
             "notch_tol_mm": "notch tolerance (method)", "width_tol_mm": "width tolerance (method)"}
     cols = [style.ORANGE if p.endswith("_tol_mm") else style.BLUE for p in d.param]
-    s = style.scale_for(6.0)
+    s = style.scale_for(6.0, key=Path(out).stem)
     fig, ax = plt.subplots(figsize=(6.0, 3.6))
     ax.barh(range(len(d)), d.ST, xerr=d.ST_conf, color=cols, height=0.66,
             error_kw=dict(lw=0.8))

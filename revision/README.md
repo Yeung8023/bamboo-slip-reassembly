@@ -52,10 +52,18 @@ $PY src/analysis.py         --figs revision/figs    # Supplementary Figs. 4 and 
 ```
 
 Typography is set from the width a figure is printed at, not the width it is
-drawn at: `style.scale_for(canvas_width)` before `plt.subplots`, and
+drawn at: `style.scale_for(canvas_width, key=name)` before `plt.subplots`, and
 `style.legend_below()` for a legend that cannot cross a curve. The targets are
-in `style.PRINTED`, and follow the Nature Portfolio guidance of 5 pt minimum
-and 7 pt preferred.
+in `style.PRINTED` and follow the Nature Portfolio guidance of 5 pt minimum and
+7 pt preferred.
+
+Saving with `bbox_inches="tight"` crops the canvas by an amount that depends on
+the panel count and the label lengths, so a scale taken from the figure width
+alone leaves one figure's type larger than another's. `code/calibrate_figures.py`
+measures what each saved figure occupies and writes `figs/widths.json`, which
+`scale_for` uses in preference to the nominal width. Build the figures, run the
+calibration, then build once more; two passes bring every label within a few
+tenths of a point of the target.
 
 ## Reproducing
 
