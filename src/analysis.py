@@ -218,27 +218,37 @@ def fig_effort(d, out, state=None):
         g = g.sort_values("k")
         xmax = g.x.max()
         ax.errorbar(g.x, g.y, yerr=g.e, color=style.ORANGE, marker="s",
-                    capsize=2, label="Expert review of ranked list (oracle)")
+                    capsize=2, label="expert review of a ranked list (oracle)")
         for _, r in g.iterrows():
             # Labels sit to the left of their point so they stay clear of the
             # reference labels on the right-hand side.
             ax.annotate(f"top-{int(r.k)}", (r.x, r.y), textcoords="offset points",
-                        xytext=(-6, -11), ha="right", fontsize=7 * s,
+                        xytext=(-5, -10), ha="right", fontsize=style.PRINTED["label"] * s,
                         color=style.INK_SECONDARY)
     ax.set_xscale("log")
     # Room to the right of the last oracle point for the reference labels, so
     # that they cannot collide with the top-k annotations.
-    ax.set_xlim(right=xmax * 26)
+    ax.set_xlim(right=xmax * 7.5)
+    # named as the manuscript names them, at the size of the axis labels, and
+    # lifted clear of the line each one belongs to
+    # The caption says these three are charged no review, so the lines carry
+    # only the name. The upper two lie 0.03 apart, so one label sits above its
+    # line and the other below.
+    NAMES = {"latent": ("latent properties", "top"),
+             "full": ("pairwise constraints", "bottom"),
+             "matching": ("bipartite matching", "bottom")}
     for mth, col in [("latent", style.ACCENT), ("full", style.BLUE),
                      ("matching", style.MUTED)]:
         s2 = sub[sub.method == mth]
         if s2.empty:
             continue
         v = s2.ari.mean()
+        name, side = NAMES[mth]
         ax.axhline(v, color=col, ls="--", lw=1.3)
-        ax.annotate(style.METHOD_LABELS[mth] + ", no review",
-                    (xmax * 22, v), fontsize=style.PRINTED["tick"] * s,
-                    color=col, ha="right", va="top")
+        ax.annotate(name, (xmax * 7.0, v), textcoords="offset points",
+                    xytext=(0, 3 if side == "bottom" else -3),
+                    fontsize=style.PRINTED["label"] * s,
+                    color=col, ha="right", va=side)
     ax.set_xlabel("candidate pairs a specialist must inspect")
     ax.set_ylabel("slip partition index")
     style.finish(ax)

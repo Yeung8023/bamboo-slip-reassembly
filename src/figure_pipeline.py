@@ -425,13 +425,13 @@ def make(model, out, dpi=600):
     ids = [i for c in show for i in c]
 
     figw = 7.4
-    s = style.scale_for(figw, key=Path(out).stem)
+    s = style.scale_for(figw)
     # The panel is printed at 0.95\textwidth, so a size given here is divided
     # by s before a reader sees it. The constants above were chosen on the
     # canvas rather than on the page, which put the smallest of them at 4.4pt
     # in print; they are lifted so that the smallest prints at about 5.2pt.
     global FS_LETTER, FS_TITLE, FS_SUB, FS_BODY, FS_SMALL, FS_TINY
-    k = 5.8 * s / FS_TINY
+    k = 5.2 * s / FS_TINY
     FS_LETTER, FS_TITLE, FS_SUB = FS_LETTER * k, FS_TITLE * k, FS_SUB * k
     FS_BODY, FS_SMALL, FS_TINY = FS_BODY * k, FS_SMALL * k, FS_TINY * k
     fig = plt.figure(figsize=(figw, figw * CH / CW))

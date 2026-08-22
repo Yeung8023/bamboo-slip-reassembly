@@ -22,6 +22,7 @@ import style  # noqa: E402
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker as mticker  # noqa: E402
 
 style.apply()
 FIGS.mkdir(parents=True, exist_ok=True)
@@ -290,9 +291,16 @@ def fig_decomposition(path=RESULTS / "decomposition.csv"):
         sub = d[d.solver == solver]
         if not len(sub):
             continue
-        mu, sd = _agg(sub, "n_frag", "solve_s")
-        axes[0].errorbar(mu.index, mu.values, yerr=sd.values, marker=mk,
-                         color=col, label=lab, capsize=1.2 * s)
+        # A symmetric standard deviation is the wrong interval on a
+        # logarithmic axis: at the largest sizes the spread exceeds the mean,
+        # the lower end falls below zero and the bar is drawn the full height
+        # of the panel. The whiskers run from the fastest run to the slowest,
+        # which is what "not reproducible at this scale" actually looks like.
+        g = sub.groupby("n_frag")["solve_s"]
+        mu, lo, hi = g.mean(), g.min(), g.max()
+        axes[0].errorbar(mu.index, mu.values,
+                         yerr=[mu.values - lo.values, hi.values - mu.values],
+                         marker=mk, color=col, label=lab, capsize=1.2 * s)
         opt = sub.groupby("n_frag")["status"].apply(
             lambda x: float(np.mean(x == "OPTIMAL")))
         axes[1].plot(opt.index, opt.values, marker=mk, color=col, label=lab)
@@ -306,10 +314,12 @@ def fig_decomposition(path=RESULTS / "decomposition.csv"):
         mu, sd = _agg(sub, "n_frag", "max_component")
         axes[2].errorbar(mu.index, mu.values, yerr=sd.values, marker="o",
                          color=style.ACCENT, capsize=1.2 * s)
-        axes[2].plot(sorted(d.n_frag.unique()), sorted(d.n_frag.unique()),
-                     ls=":", color=style.AXIS, label="whole corpus")
+        xs = sorted(d.n_frag.unique())
+        axes[2].plot(xs, xs, ls=":", color=style.AXIS)
+        axes[2].annotate("whole corpus", (xs[-1], xs[-1]), ha="right",
+                         va="bottom", color=style.AXIS,
+                         fontsize=style.PRINTED["tick"] * s)
         axes[2].set_yscale("log")
-        pass
     axes[2].set_ylabel("largest component")
     for ax in axes:
         ax.set_xlabel("fragments in the corpus")
@@ -410,6 +420,7 @@ def _main():
     fig_scaling_rev()
     fig_substitution_rev()
     fig_frontier_rev()
+    fig_pr_spread_rev()
 
 
 def fig_real_examples(screened=common.ROOT / "revision" / "data_real" /
@@ -646,6 +657,64 @@ def fig_frontier_rev(path=RESULTS / "frontier_rev.csv"):
     fig.savefig(FIGS / "figR13_frontier.png")
     plt.close(fig)
     print("figR13_frontier.png")
+
+
+def fig_pr_spread_rev(front=RESULTS / "frontier_rev.csv",
+                      runs=RESULTS / "rerun_main.csv"):
+    """Operating curves and the spread over seeds, both from the rerun.
+
+    The submitted version of this figure drew its curves and its box plot from
+    corpora that predate the deposition model, while the caption quoted the
+    reran significance values. Both halves now come from the same experiment
+    as the main table.
+    """
+    if not (Path(front).exists() and Path(runs).exists()):
+        return
+    d = pd.read_csv(front)
+    r = pd.read_csv(runs)
+    states = [x for x in ("P2", "P3", "P4", "P5") if x in set(d.state)]
+    order = [("full", style.RAMP[3], "X", "pairwise constraints"),
+             ("latent", style.ACCENT, "o", "latent properties (this work)")]
+    fig, axes, s = _new(len(states) + 1, 3.0 * (len(states) + 1), 3.4,
+                        key="figR14_pr_spread",
+                        gridspec_kw=dict(wspace=0.62))
+    for ax, st in zip(axes, states):
+        for m, col, mk, lab in order:
+            g = d[(d.state == st) & (d.method == m)].sort_values("recall")
+            ax.plot(g["recall"], g["precision"], marker=mk, color=col,
+                    label=lab, ms=2.2 * s, lw=0.75 * s)
+        ax.set_xlabel("recall")
+        # three panels across the page leave each one about 1.2 in wide, which
+        # the default tick count runs together
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=3, prune="both"))
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=4))
+        style.finish(ax, grid_axis="both")
+    axes[0].set_ylabel("precision")
+
+    keep = ["matching", "morph", "length", "full", "latent"]
+    ref = r[r.state == "P4"]
+    ax = axes[-1]
+    data = [ref[ref.method == m].ari.values for m in keep]
+    bp = ax.boxplot(data, patch_artist=True, widths=0.6,
+                    medianprops=dict(color=style.INK, lw=0.7 * s))
+    for patch, m in zip(bp["boxes"], keep):
+        patch.set_facecolor(style.METHOD_COLORS.get(m, style.MUTED))
+        patch.set_alpha(0.85)
+        patch.set_edgecolor(style.INK)
+    for k, v in enumerate(data):
+        ax.scatter(np.full(len(v), k + 1) + np.linspace(-0.12, 0.12, len(v)),
+                   v, s=2.0 * s, color=style.INK, zorder=5, alpha=0.7)
+    ax.set_xticks(range(1, len(keep) + 1))
+    ax.set_xticklabels(["match", "morph", "length", "pairwise", "latent"],
+                       rotation=40, ha="right")
+    ax.set_ylabel("partition index")
+    style.finish(ax)
+
+    style.panel_titles(list(axes))
+    _legend_below(fig, axes[0], ncol=2, bottom=0.42)
+    fig.savefig(FIGS / "figR14_pr_spread.png")
+    plt.close(fig)
+    print("figR14_pr_spread.png")
 
 
 if __name__ == "__main__":

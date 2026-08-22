@@ -118,6 +118,9 @@ def main():
     axes[1].set_xlabel("fragments per slip")
     axes[1].set_ylabel("count")
     axes[1].set_yscale("log")
+    axes[1].set_yticks([1, 10, 100, 1000])
+    axes[1].set_yticklabels(["1", "10", "100", "1000"])
+    axes[1].set_yticks([], minor=True)
     style.finish(axes[1])
 
     style.panel_titles(list(axes))
